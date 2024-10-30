@@ -81,18 +81,20 @@ class UnscrambleGame {
 
   public addCharacterToSelected(index:number) {
     var ugs:UserGameState = this.userGameStatus;
-    //var userSelectedLetters  = ugs.userSelectedLetters;
-    //var userLetters = ugs.userLetters;
-
     ugs.userSelectedLetters = ugs.userSelectedLetters + ugs.userLetters[index];
     var letters = Array.from(ugs.userLetters);
     letters.splice(index, 1);
     ugs.userLetters = letters.join('');
     this.userGameStatus = ugs;
+  }
 
-    console.log("User letters:"+ this.userGameStatus.userLetters);
-    console.log("User selected letters:"+ this.userGameStatus.userSelectedLetters);
-
+  public removeCharacter(index:number) {
+    var ugs:UserGameState = this.userGameStatus;
+    ugs.userLetters = ugs.userLetters + ugs.userSelectedLetters[index];
+    var letters = Array.from(ugs.userSelectedLetters);
+    letters.splice(index, 1);
+    ugs.userSelectedLetters = letters.join('');
+    this.userGameStatus = ugs;
   }
 
   public get myPostId() {
@@ -193,6 +195,16 @@ Devvit.addCustomPostType({
             game.userGameStatus.userLetters.split("").map((row, index) => (
               <>
               <button appearance="destructive"  width="28px" height="28px" onPress={() => game.addCharacterToSelected(index)} >{row.toUpperCase()}</button> <spacer size="small"/>
+              </>
+          ))}
+        </hstack>
+
+        <text size="large">Selected Characters:</text>
+        <hstack>
+          {
+            game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
+              <>
+              <button appearance="destructive"  width="28px" height="28px" onPress={() => game.removeCharacter(index)} >{row.toUpperCase()}</button> <spacer size="small"/>
               </>
           ))}
         </hstack>
