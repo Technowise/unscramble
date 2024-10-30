@@ -1,0 +1,14 @@
+devvit game idea:
+
+In comic/Sitcom related subreddits, show a set of letters (from names taken from sitcom characters), arrange them in random order, ask the users to make/find names.
+As soon as someone makes a name, it is shown in the screen for everyone with the username. There will be time limit set, after which it shows the set of names.
+
+There will be 5 minutes bracket to solve the puzzle. Whoever finishes the maximum number of names will become winner. Each win will add point to user for the leaderboard. Name once solved by one person cannot be solved by another user in the same batch.
+
+
+Additional features:
+1) Option for mods to set the background image for the game.
+2) Option to set colors for the letters and background of letter boxes. (Default will be yellow background and dark brown letter)
+
+
+Use every post from FindTheSniper, post it in /r/Spottit by marking the spot. Do it for all posts which are in portrait mode.
