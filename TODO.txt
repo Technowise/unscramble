@@ -12,3 +12,5 @@ Additional features:
 
 
 Use every post from FindTheSniper, post it in /r/Spottit by marking the spot. Do it for all posts which are in portrait mode.
+
+Make sample post for /r/LogoDesign sub.

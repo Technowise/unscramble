@@ -1,8 +1,9 @@
 // Learn more at developers.reddit.com/docs
-import { Devvit, useState,ContextAPIClients,RedisClient,UIClient,UseStateResult} from '@devvit/public-api';
+import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult} from '@devvit/public-api';
 
 Devvit.configure({
   redditAPI: true,
+  realtime: true,
 });
 
 type namesAndLetters = {
@@ -15,6 +16,25 @@ type UserGameState = {
   userLetters: string;
 }
 
+type Payload = {
+  name: string;
+  username: string;
+};
+
+type RealtimeMessage = {
+  payload: Payload;
+  session: string;
+  postId: string;
+};
+
+function sessionId(): string {
+  let id = '';
+  const asciiZero = '0'.charCodeAt(0);
+  for (let i = 0; i < 4; i++) {
+    id += String.fromCharCode(Math.floor(Math.random() * 26) + asciiZero);
+  }
+  return id;
+}
 
 //Later, this should come from config value for the subreddit, from redis.
 const character_names = ["eric", "kenny", "kyle", "stan", 
@@ -34,19 +54,28 @@ class UnscrambleGame {
   private _ScreenIsWide: boolean;
   private _currentUsername: UseStateResult<string>;
   private _myPostId: UseStateResult<string>;
-  private _namesAndLettersObj:namesAndLetters;
-
+  private _namesAndLettersObj:UseStateResult<namesAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
-
+  private _statusMessages: UseStateResult<string[]>;
+  private _channel: UseChannelResult<RealtimeMessage>;
+  private _session: UseStateResult<string>;
 
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
     this._ui = context.ui;
     this.redis = context.redis;
     this._ScreenIsWide = this.isScreenWide();
-
+    this._statusMessages = context.useState(async () => {
+      var messages: string[] = [];
+      return messages;//TODO: set this up to get list of current status messages from redis.
+    });
+  
     this._myPostId = context.useState(async () => {
       return postId;
+    });
+
+    this._session = context.useState(async () => {
+      return sessionId();
     });
 
     this._currentUsername = context.useState(async () => {
@@ -55,14 +84,37 @@ class UnscrambleGame {
     });
 
     this._redisKeyPrefix = this.myPostId + this.currentUsername;
-    this._namesAndLettersObj = this.getRandomNamesAndLetters();
+
+    this._namesAndLettersObj = context.useState<namesAndLetters>(
+      async() =>{
+        const n:namesAndLetters = this.getRandomNamesAndLetters();
+        return n;
+      }
+    );
+    //this._namesAndLettersObj = this.getRandomNamesAndLetters();
+
+    
 
     this._userGameStatus = context.useState<UserGameState>(
       async() =>{
-        const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj.letters};
+        const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters};
         return UGS;
       }
     );
+
+
+    this._channel = useChannel<RealtimeMessage>({
+      name: 'events',
+      onMessage: (msg) => {
+        if (msg.session === this._session[0] || msg.postId !== this._myPostId[0]) {
+          //Ignore my updates b/c they have already been rendered
+          return;
+        }
+        const payload = msg.payload;
+        //updateCanvas(payload.index, payload.color);
+      },
+    });
+
   }
 
   public getRandomNamesAndLetters(){
@@ -102,11 +154,20 @@ class UnscrambleGame {
   }
 
   public get letters() {
-    return this._namesAndLettersObj.letters;
+    return this._namesAndLettersObj[0].letters;
   }
 
   public get names() {
-    return this._namesAndLettersObj.names;
+    return this._namesAndLettersObj[0].names;
+  }
+
+  public get statusMessages() {
+    return this._statusMessages[0];
+  }
+
+  public set statusMessages(messages: string[]) {
+    this._statusMessages[0] = messages;
+    this._statusMessages[1](messages);
   }
 
   get redisKeyPrefix() {
@@ -115,6 +176,15 @@ class UnscrambleGame {
 
   public get currentUsername() {
     return this._currentUsername[0];
+  }
+
+  public get namesAndLetters() {
+    return this._namesAndLettersObj[0];
+  }
+
+  public set namesAndLetters(value: namesAndLetters) {
+    this._namesAndLettersObj[0] = value;
+    this._namesAndLettersObj[1](value);
   }
 
   public get userGameStatus() {
@@ -134,6 +204,35 @@ class UnscrambleGame {
   public async openIntroPage(){
     this._context.ui.navigateTo('https://www.reddit.com/r/Spottit/comments/1ethp30/introduction_to_spottit_game/');
   };
+
+  public verifyName(){
+
+    if( character_names.includes(this.userGameStatus.userSelectedLetters) ) {
+      this._context.ui.showToast({
+        text: "That's a correct name, congratulations!",
+        appearance: 'success',
+      });
+      var messages = this.statusMessages;
+      messages.push(this.currentUsername+" made the name: "+ this.userGameStatus.userSelectedLetters.toLocaleUpperCase()+". Well done!");
+      //TODO: push the messages value to Redis.
+      //TODO: Add points for user, and sync to Redis.
+      if( messages.length > 2) {
+        messages.shift();//Remove last message if we already have 10 messages.
+      }
+      var ugs = this.userGameStatus;
+      ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
+      ugs.userSelectedLetters = "";//Reset selected letters for this user.
+      this.userGameStatus = ugs;
+      this.statusMessages =  messages;
+    }
+    else {
+      this._context.ui.showToast({
+        text: "Sorry, that's not a valid character name!",
+        appearance: 'neutral',
+      });      
+    }
+
+  }
 
 }
 
@@ -165,7 +264,6 @@ Devvit.addCustomPostType({
   name: 'Unscramble Post',
   height: 'regular',
   render: (_context) => {
-    const [counter, setCounter] = useState(0);
 
     const myPostId = _context.postId ?? 'defaultPostId';
     const game = new UnscrambleGame(_context, myPostId);
@@ -173,23 +271,13 @@ Devvit.addCustomPostType({
     console.log("here are the random names:");
     console.log(game.names);
 
-    console.log("here is the characters set:");
-    console.log(game.letters);
-
     return (
       <vstack height="100%" width="100%" gap="medium" alignment="center middle">
-        <image
-          url="logo.png"
-          description="logo"
-          imageHeight={256}
-          imageWidth={256}
-          height="48px"
-          width="48px"
-        />
-        <text size="large">{`Click counter: ${counter}`}</text>
-        <button appearance="primary" onPress={() => setCounter((counter) => counter + 1)}>
-          Click me!
-        </button>
+
+        <text style="heading" size="large" weight='bold' alignment="middle center" color='black'>
+          Can you make two Southpark character names out of these letters?
+        </text>
+
         <hstack>
           {
             game.userGameStatus.userLetters.split("").map((row, index) => (
@@ -208,6 +296,21 @@ Devvit.addCustomPostType({
               </>
           ))}
         </hstack>
+
+        <text style="heading" size="medium" weight='bold' alignment="middle center" color='black'>
+         Messages:
+        </text>
+        <vstack>
+        {
+            game.statusMessages.map((message) => (
+              <>
+              <text >{message}</text> 
+              <spacer size="small"/>
+              </>
+          ))}
+        </vstack>
+
+        <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button>
       </vstack>
     );
   },
