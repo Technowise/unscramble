@@ -106,14 +106,21 @@ class UnscrambleGame {
     this._channel = useChannel<RealtimeMessage>({
       name: 'events',
       onMessage: (msg) => {
+
+        const payload = msg.payload;
+        console.log("Message payload received:");
+        console.log(payload);
+
         if (msg.session === this._session[0] || msg.postId !== this._myPostId[0]) {
           //Ignore my updates b/c they have already been rendered
           return;
         }
-        const payload = msg.payload;
+
         //updateCanvas(payload.index, payload.color);
       },
     });
+
+    this._channel.subscribe();
 
   }
 
@@ -205,7 +212,7 @@ class UnscrambleGame {
     this._context.ui.navigateTo('https://www.reddit.com/r/Spottit/comments/1ethp30/introduction_to_spottit_game/');
   };
 
-  public verifyName(){
+  public async verifyName(){
 
     if( character_names.includes(this.userGameStatus.userSelectedLetters) ) {
       this._context.ui.showToast({
@@ -220,10 +227,16 @@ class UnscrambleGame {
         messages.shift();//Remove last message if we already have 10 messages.
       }
       var ugs = this.userGameStatus;
+
+      const payload: Payload = { username: this.currentUsername, name: ugs.userSelectedLetters };
+      const message: RealtimeMessage = { payload, session: this._session[0], postId: this.myPostId };
+      await this._channel.send(message); 
+
       ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
       ugs.userSelectedLetters = "";//Reset selected letters for this user.
       this.userGameStatus = ugs;
       this.statusMessages =  messages;
+
     }
     else {
       this._context.ui.showToast({
