@@ -111,6 +111,14 @@ class UnscrambleGame {
         console.log("Message payload received:");
         console.log(payload);
 
+        var messages = this.statusMessages;
+        messages.push(msg.payload.username+" made the name: "+ msg.payload.name.toLocaleUpperCase()+". Well done!");
+        //TODO: Add points for user, and sync to Redis.
+        if( messages.length > 2) {
+          messages.shift();//Remove last message if we already have 10 messages.
+        }
+        this.statusMessages =  messages;
+
         if (msg.session === this._session[0] || msg.postId !== this._myPostId[0]) {
           //Ignore my updates b/c they have already been rendered
           return;
@@ -219,13 +227,7 @@ class UnscrambleGame {
         text: "That's a correct name, congratulations!",
         appearance: 'success',
       });
-      var messages = this.statusMessages;
-      messages.push(this.currentUsername+" made the name: "+ this.userGameStatus.userSelectedLetters.toLocaleUpperCase()+". Well done!");
-      //TODO: push the messages value to Redis.
-      //TODO: Add points for user, and sync to Redis.
-      if( messages.length > 2) {
-        messages.shift();//Remove last message if we already have 10 messages.
-      }
+
       var ugs = this.userGameStatus;
 
       const payload: Payload = { username: this.currentUsername, name: ugs.userSelectedLetters };
@@ -235,7 +237,6 @@ class UnscrambleGame {
       ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
       ugs.userSelectedLetters = "";//Reset selected letters for this user.
       this.userGameStatus = ugs;
-      this.statusMessages =  messages;
 
     }
     else {
