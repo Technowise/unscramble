@@ -139,6 +139,13 @@ class UnscrambleGame {
 
   }
 
+  public resetSelectedLetters() {
+    var ugs = this.userGameStatus;//Reset selected letters for this user.
+    ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
+    ugs.userSelectedLetters = "";
+    this.userGameStatus = ugs;
+  }
+
   public getRandomNamesAndLetters(){
     var name1index = Math.floor(Math.random() * character_names.length/2);
     var name2index = Math.floor(Math.random() * character_names.length/2);
@@ -235,15 +242,11 @@ class UnscrambleGame {
         appearance: 'success',
       });
 
-      var ugs = this.userGameStatus;
-
-      const payload: Payload = { username: this.currentUsername, name: ugs.userSelectedLetters };
+      const payload: Payload = { username: this.currentUsername, name: this.userGameStatus.userSelectedLetters };
       const message: RealtimeMessage = { payload, session: this._session[0], postId: this.myPostId };
-      await this._channel.send(message); 
+      await this._channel.send(message);
 
-      ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
-      ugs.userSelectedLetters = "";//Reset selected letters for this user.
-      this.userGameStatus = ugs;
+      this.resetSelectedLetters();
 
     }
     else {
@@ -298,10 +301,10 @@ Devvit.addCustomPostType({
 
     ));
 
-    const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => game.userGameStatus.userSelectedLetters.length > 0 &&  (
+    const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack>
-        <text size="large" weight='bold'>Selected letters:</text>
-        <hstack alignment="start middle" width="100%" border="thin" borderColor='grey' padding='xsmall'>
+        <text size="large" weight='bold'>Selected letters: {game.userGameStatus.userSelectedLetters.length == 0 ? "None": ""}</text>
+        <hstack alignment="start middle" width="100%" border="thin" borderColor='blue' padding='xsmall'>
         {
           game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
             <>
@@ -313,7 +316,10 @@ Devvit.addCustomPostType({
         ))}
         </hstack>
         <spacer size="medium" />
-        <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button>
+        <hstack>
+          <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
+          <button size="small" icon='close' onPress={() => game.resetSelectedLetters()}>Reset</button>
+        </hstack>
       </vstack> );
 
 
@@ -323,13 +329,13 @@ Devvit.addCustomPostType({
     return (
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
-        <vstack height="100%" width="344px" alignment="center top" padding="large">
+        <vstack height="100%" width="344px" alignment="center top" padding="large" backgroundColor='#ccc'>
 
-          <text style="heading" size="xxlarge" weight='bold' alignment="center middle" color='black' width="342px" height="100px" wrap>
+          <text style="heading" size="xxlarge" weight='bold' alignment="center middle" color='black' width="330px" height="100px" wrap>
             Which two Southpark character names can you make out of these letters?
           </text>
 
-          <vstack alignment="start middle" width="100%" border="thin" borderColor='red' padding='small'>
+          <vstack alignment="start middle" width="312px" border="thin" borderColor='red' padding='small' >
             {splitArray(letterCells, 10).map((row) => ( <>
               <hstack>{row}</hstack>
               <spacer size="xsmall" />
@@ -337,14 +343,14 @@ Devvit.addCustomPostType({
             ))}
           </vstack>
 
-          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="340px" height="100px" wrap>
+          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="312px" height="100px" wrap>
             Click on the characters to select.
           </text>
           <spacer size="medium" />
 
           <SelectedLettersBlock game={game} />
 
-          <vstack borderColor='grey' padding='small' height="100px" width="100%">
+          <vstack borderColor='grey' padding='small' height="100px" width="330px" backgroundColor='white'>
             <text style="heading" size="medium" weight='bold' alignment="middle center" color='black'>
             Messages:
             </text>
@@ -352,7 +358,7 @@ Devvit.addCustomPostType({
             {
                 game.statusMessages.map((message) => (
                   <>
-                  <text >{message}</text> 
+                  <text wrap>{message}</text> 
                   <spacer size="small"/>
                   </>
               ))}
