@@ -304,7 +304,7 @@ Devvit.addCustomPostType({
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack>
         <text size="large" weight='bold'>Selected letters: {game.userGameStatus.userSelectedLetters.length == 0 ? "None": ""}</text>
-        <hstack alignment="start middle" width="100%" border="thin" borderColor='blue' padding='xsmall'>
+        <hstack alignment="start middle" width="100%" padding='xsmall'>
         {
           game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
             <>
@@ -320,6 +320,7 @@ Devvit.addCustomPostType({
           <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
           <button size="small" icon='close' onPress={() => game.resetSelectedLetters()}>Reset</button>
         </hstack>
+        <spacer size="medium" />
       </vstack> );
 
 
@@ -343,7 +344,7 @@ Devvit.addCustomPostType({
             ))}
           </vstack>
 
-          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="312px" height="100px" wrap>
+          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="312px" wrap>
             Click on the characters to select.
           </text>
           <spacer size="medium" />
