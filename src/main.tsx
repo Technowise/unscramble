@@ -103,15 +103,12 @@ class UnscrambleGame {
     );
     //this._namesAndLettersObj = this.getRandomNamesAndLetters();
 
-    
-
     this._userGameStatus = context.useState<UserGameState>(
       async() =>{
         const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters};
         return UGS;
       }
     );
-
 
     this._channel = useChannel<RealtimeMessage>({
       name: 'events',
@@ -269,7 +266,7 @@ Devvit.addMenuItem({
     const { reddit, ui } = context;
     const subreddit = await reddit.getCurrentSubreddit();
     const post = await reddit.submitPost({
-      title: 'Unscramble the letters to make names of characters',
+      title: 'Southpark Unscramble Game',
       subredditName: subreddit.name,
       // The preview appears while the post loads
       preview: (
@@ -292,10 +289,13 @@ Devvit.addCustomPostType({
     const myPostId = _context.postId ?? 'defaultPostId';
     const game = new UnscrambleGame(_context, myPostId);
 
-    const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (
-      <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
-        <text size="large" color="black" weight="bold">{letter.toUpperCase()}</text>
-      </vstack>
+    const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (<>
+        <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
+          <text size="large" color="black" weight="bold">{letter.toUpperCase()}</text>
+        </vstack>
+        <spacer size="xsmall" />
+      </>
+
     ));
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => game.userGameStatus.userSelectedLetters.length > 0 &&  (
@@ -325,13 +325,15 @@ Devvit.addCustomPostType({
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="large">
 
-          <text style="heading" size="xxlarge" weight='bold' alignment="center middle" color='black' width="340px" height="100px" wrap>
+          <text style="heading" size="xxlarge" weight='bold' alignment="center middle" color='black' width="342px" height="100px" wrap>
             Which two Southpark character names can you make out of these letters?
           </text>
 
-          <vstack alignment="start middle" width="100%" border="thin" borderColor='grey' padding='xsmall'>
-            {splitArray(letterCells, 10).map((row) => (
-            <hstack>{row}</hstack>
+          <vstack alignment="start middle" width="100%" border="thin" borderColor='red' padding='small'>
+            {splitArray(letterCells, 10).map((row) => ( <>
+              <hstack>{row}</hstack>
+              <spacer size="xsmall" />
+            </>
             ))}
           </vstack>
 
