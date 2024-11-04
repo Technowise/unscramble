@@ -36,6 +36,16 @@ function sessionId(): string {
   return id;
 }
 
+function splitArray<T>(array: T[], segmentLength: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < array.length; i += segmentLength) {
+    result.push(array.slice(i, i + segmentLength));
+  }
+  return result;
+}
+
+
+
 //Later, this should come from config value for the subreddit, from redis.
 const character_names = ["eric", "kenny", "kyle", "stan", 
                           "butters", "token", "wendy", "bebe", "tweek", "craig", "timmy", 
@@ -282,56 +292,71 @@ Devvit.addCustomPostType({
     const myPostId = _context.postId ?? 'defaultPostId';
     const game = new UnscrambleGame(_context, myPostId);
 
+    const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (
+      <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
+        <text size="large" color="black" weight="bold">{letter.toUpperCase()}</text>
+      </vstack>
+    ));
+
+    const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => game.userGameStatus.userSelectedLetters.length > 0 &&  (
+      <vstack>
+        <text size="large" weight='bold'>Selected letters:</text>
+        <hstack alignment="start middle" width="100%" border="thin" borderColor='grey' padding='xsmall'>
+        {
+          game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
+            <>
+              <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.removeCharacter(index)}>
+                <text size="large" color="black" weight="bold">{row.toUpperCase()}</text>
+              </vstack>
+              <spacer size="xsmall"/>
+            </>
+        ))}
+        </hstack>
+        <spacer size="medium" />
+        <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button>
+      </vstack> );
+
+
     console.log("here are the random names:");
     console.log(game.names);
 
     return (
     <blocks height="tall">
-      <vstack height="100%" width="100%" gap="medium" alignment="center middle">
+      <vstack alignment="center middle" width="100%" height="100%">
+        <vstack height="100%" width="344px" alignment="center top" padding="large">
 
-        <text style="heading" size="xxlarge" weight='bold' alignment="middle center" color='black'>
-          Which two Southpark character names can you make out of these scrambled letters?
-        </text>
+          <text style="heading" size="xxlarge" weight='bold' alignment="center middle" color='black' width="340px" height="100px" wrap>
+            Which two Southpark character names can you make out of these letters?
+          </text>
 
-        <hstack>
-          {
-            game.userGameStatus.userLetters.split("").map((row, index) => (
-              <>
-                <vstack backgroundColor="#f5b642" width="28px" height="28px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
-                  <text size="large" color="black" weight="bold">{row.toUpperCase()}</text>
-                </vstack>
-                <spacer size="xsmall"/>
-              </>
-          ))}
-        </hstack>
+          <vstack alignment="start middle" width="100%" border="thin" borderColor='grey' padding='xsmall'>
+            {splitArray(letterCells, 10).map((row) => (
+            <hstack>{row}</hstack>
+            ))}
+          </vstack>
 
-        <text size="large">Selected Characters:</text>
-        <hstack>
-          {
-            game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
-              <>
-                <vstack backgroundColor="#f5b642" width="28px" height="28px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.removeCharacter(index)}>
-                  <text size="large" color="black" weight="bold">{row.toUpperCase()}</text>
-                </vstack>
-                <spacer size="xsmall"/>
-              </>
-          ))}
-        </hstack>
+          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="340px" height="100px" wrap>
+            Click on the characters to select.
+          </text>
+          <spacer size="medium" />
 
-        <text style="heading" size="medium" weight='bold' alignment="middle center" color='black'>
-         Messages:
-        </text>
-        <vstack>
-        {
-            game.statusMessages.map((message) => (
-              <>
-              <text >{message}</text> 
-              <spacer size="small"/>
-              </>
-          ))}
+          <SelectedLettersBlock game={game} />
+
+          <vstack borderColor='grey' padding='small' height="100px" width="100%">
+            <text style="heading" size="medium" weight='bold' alignment="middle center" color='black'>
+            Messages:
+            </text>
+            <vstack>
+            {
+                game.statusMessages.map((message) => (
+                  <>
+                  <text >{message}</text> 
+                  <spacer size="small"/>
+                  </>
+              ))}
+            </vstack>
+          </vstack>
         </vstack>
-
-        <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button>
       </vstack>
     </blocks>
     );

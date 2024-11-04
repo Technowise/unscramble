@@ -1,6 +1,7 @@
 Make the UI and letters similar to Literati game(yahoo).
 Store the current letters set in redis, rotate it every 10 minutes (or when both the names are guessed).
 Align the letter tiles to left.
+Add button to reset (move all characters back at once)
 Maintain points to users based on number of correct words, create leaderboard.
 
 
