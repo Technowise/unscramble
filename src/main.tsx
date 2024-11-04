@@ -276,7 +276,7 @@ Devvit.addMenuItem({
 // Add a post type definition
 Devvit.addCustomPostType({
   name: 'Unscramble Post',
-  height: 'regular',
+  height: 'tall',
   render: (_context) => {
 
     const myPostId = _context.postId ?? 'defaultPostId';
@@ -286,17 +286,21 @@ Devvit.addCustomPostType({
     console.log(game.names);
 
     return (
+    <blocks height="tall">
       <vstack height="100%" width="100%" gap="medium" alignment="center middle">
 
-        <text style="heading" size="large" weight='bold' alignment="middle center" color='black'>
-          Can you make two Southpark character names out of these letters?
+        <text style="heading" size="xxlarge" weight='bold' alignment="middle center" color='black'>
+          Which two Southpark character names can you make out of these scrambled letters?
         </text>
 
         <hstack>
           {
             game.userGameStatus.userLetters.split("").map((row, index) => (
               <>
-              <button appearance="destructive"  width="28px" height="28px" onPress={() => game.addCharacterToSelected(index)} >{row.toUpperCase()}</button> <spacer size="small"/>
+                <vstack backgroundColor="#f5b642" width="28px" height="28px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
+                  <text size="large" color="black" weight="bold">{row.toUpperCase()}</text>
+                </vstack>
+                <spacer size="xsmall"/>
               </>
           ))}
         </hstack>
@@ -306,7 +310,10 @@ Devvit.addCustomPostType({
           {
             game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
               <>
-              <button appearance="destructive"  width="28px" height="28px" onPress={() => game.removeCharacter(index)} >{row.toUpperCase()}</button> <spacer size="small"/>
+                <vstack backgroundColor="#f5b642" width="28px" height="28px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.removeCharacter(index)}>
+                  <text size="large" color="black" weight="bold">{row.toUpperCase()}</text>
+                </vstack>
+                <spacer size="xsmall"/>
               </>
           ))}
         </hstack>
@@ -326,6 +333,7 @@ Devvit.addCustomPostType({
 
         <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button>
       </vstack>
+    </blocks>
     );
   },
 });

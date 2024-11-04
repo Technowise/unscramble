@@ -1,3 +1,9 @@
+Make the UI and letters similar to Literati game(yahoo).
+Store the current letters set in redis, rotate it every 10 minutes (or when both the names are guessed).
+Align the letter tiles to left.
+Maintain points to users based on number of correct words, create leaderboard.
+
+
 devvit game idea:
 
 In comic/Sitcom related subreddits, show a set of letters (from names taken from sitcom characters), arrange them in random order, ask the users to make/find names.
