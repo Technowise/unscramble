@@ -3,7 +3,7 @@ Store the current letters set in redis, rotate it every 10 minutes (or when both
 Align the letter tiles to left.
 Add button to reset (move all characters back at once)
 Maintain points to users based on number of correct words, create leaderboard.
-
+After certain time, show hint for the names with starting letter if nobody answered for a while.
 
 devvit game idea:
 

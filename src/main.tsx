@@ -298,31 +298,31 @@ Devvit.addCustomPostType({
         </vstack>
         <spacer size="xsmall" />
       </>
+    ));
 
+    const selectedLetterCells = game.userGameStatus.userSelectedLetters.split("").map((letter, index) => (<>
+        <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.removeCharacter(index)}>
+          <text size="large" color="black" weight="bold">{letter.toUpperCase()}</text>
+        </vstack>
+      <spacer size="xsmall" />
+      </>
     ));
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack>
-        <text size="large" weight='bold'>Selected letters: {game.userGameStatus.userSelectedLetters.length == 0 ? "None": ""}</text>
-        <hstack alignment="start middle" width="100%" padding='xsmall'>
-        {
-          game.userGameStatus.userSelectedLetters.split("").map((row, index) => (
-            <>
-              <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.removeCharacter(index)}>
-                <text size="large" color="black" weight="bold">{row.toUpperCase()}</text>
-              </vstack>
-              <spacer size="xsmall"/>
-            </>
+      <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' >
+        <text size="large" weight='bold'>Selected letters:</text>
+        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="large" weight='bold'>None</text>: ""}
+        {splitArray(selectedLetterCells, 10).map((row) => ( <>
+          <hstack>{row}</hstack>
+          <spacer size="xsmall" />
+        </>
         ))}
-        </hstack>
         <spacer size="medium" />
-        <hstack>
+        <hstack alignment="center middle" width="100%">
           <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
           <button size="small" icon='close' onPress={() => game.resetSelectedLetters()}>Reset</button>
         </hstack>
-        <spacer size="medium" />
-      </vstack> );
-
+      </vstack>);
 
     console.log("here are the random names:");
     console.log(game.names);
@@ -332,11 +332,11 @@ Devvit.addCustomPostType({
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="large" backgroundColor='#ccc'>
 
-          <text style="heading" size="xxlarge" weight='bold' alignment="center middle" color='black' width="330px" height="100px" wrap>
+          <text style="heading" size="xlarge" weight='bold' alignment="center middle" color='black' width="330px" height="80px" wrap>
             Which two Southpark character names can you make out of these letters?
           </text>
 
-          <vstack alignment="start middle" width="312px" border="thin" borderColor='red' padding='small' >
+          <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' >
             {splitArray(letterCells, 10).map((row) => ( <>
               <hstack>{row}</hstack>
               <spacer size="xsmall" />
@@ -351,10 +351,11 @@ Devvit.addCustomPostType({
 
           <SelectedLettersBlock game={game} />
 
-          <vstack borderColor='grey' padding='small' height="100px" width="330px" backgroundColor='white'>
-            <text style="heading" size="medium" weight='bold' alignment="middle center" color='black'>
-            Messages:
-            </text>
+          <spacer size="medium" />  
+          <text style="heading" size="medium" weight='bold' color='black'>
+            Game Feed
+          </text>
+          <vstack borderColor='grey' padding='small' height="140px" width="330px" backgroundColor='white'>
             <vstack>
             {
                 game.statusMessages.map((message) => (
