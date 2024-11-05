@@ -1,5 +1,5 @@
 // Learn more at developers.reddit.com/docs
-import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult} from '@devvit/public-api';
+import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, StateSetter} from '@devvit/public-api';
 
 Devvit.configure({
   redditAPI: true,
@@ -56,6 +56,10 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "satan", "scott",
                           "jesus", "buddha"];
 
+const sm:string[] = [];
+const [smessages, setSmessages] = useState(sm);
+
+
 class UnscrambleGame {
   private _redisKeyPrefix: string;
   private redis: RedisClient;
@@ -66,19 +70,24 @@ class UnscrambleGame {
   private _myPostId: UseStateResult<string>;
   private _namesAndLettersObj:UseStateResult<namesAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
-  private _statusMessages: UseStateResult<string[]>;
+  //private _statusMessages: UseStateResult<string[]>;
   private _channel: UseChannelResult<RealtimeMessage>;
   private _session: UseStateResult<string>;
+  private _statusMessagesSetter: StateSetter<string[]>;
 
-  constructor( context: ContextAPIClients, postId: string) {
+  constructor( context: ContextAPIClients, postId: string, statusMessageSetter: StateSetter<string[]>) {
     this._context = context;
     this._ui = context.ui;
     this.redis = context.redis;
     this._ScreenIsWide = this.isScreenWide();
+
+    this._statusMessagesSetter = statusMessageSetter;
+    /*
     this._statusMessages = context.useState(async () => {
       var messages: string[] = [];
       return messages;//TODO: set this up to get list of current status messages from redis.
     });
+    */
   
     this._myPostId = context.useState(async () => {
       return postId;
@@ -118,13 +127,13 @@ class UnscrambleGame {
         console.log("Message payload received:");
         console.log(payload);
 
-        var messages = this.statusMessages;
+        var messages = smessages;
         messages.push(msg.payload.username+" made the name: "+ msg.payload.name.toLocaleUpperCase()+". Well done!");
         //TODO: Add points for user, and sync to Redis.
         if( messages.length > 2) {
           messages.shift();//Remove last message if we already have 10 messages.
         }
-        this.statusMessages =  messages;
+        this._statusMessagesSetter(messages);
 
         if (msg.session === this._session[0] || msg.postId !== this._myPostId[0]) {
           //Ignore my updates b/c they have already been rendered
@@ -190,13 +199,16 @@ class UnscrambleGame {
     return this._namesAndLettersObj[0].names;
   }
 
+  /*
   public get statusMessages() {
     return this._statusMessages[0];
   }
+*/
 
   public set statusMessages(messages: string[]) {
-    this._statusMessages[0] = messages;
-    this._statusMessages[1](messages);
+    this._statusMessagesSetter(messages)
+    //this._statusMessages[0] = messages;
+    //this._statusMessages[1](messages);
   }
 
   get redisKeyPrefix() {
@@ -290,7 +302,7 @@ Devvit.addCustomPostType({
   render: (_context) => {
 
     const myPostId = _context.postId ?? 'defaultPostId';
-    const game = new UnscrambleGame(_context, myPostId);
+    const game = new UnscrambleGame(_context, myPostId, setSmessages);
 
     const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (<>
         <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
@@ -358,7 +370,7 @@ Devvit.addCustomPostType({
           <vstack borderColor='grey' padding='small' height="140px" width="330px" backgroundColor='white'>
             <vstack>
             {
-                game.statusMessages.map((message) => (
+                smessages.map((message) => (
                   <>
                   <text wrap>{message}</text> 
                   <spacer size="small"/>
