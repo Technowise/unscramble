@@ -56,8 +56,7 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "satan", "scott",
                           "jesus", "buddha"];
 
-const sm:string[] = [];
-const [smessages, setSmessages] = useState(sm);
+
 
 
 class UnscrambleGame {
@@ -70,7 +69,7 @@ class UnscrambleGame {
   private _myPostId: UseStateResult<string>;
   private _namesAndLettersObj:UseStateResult<namesAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
-  //private _statusMessages: UseStateResult<string[]>;
+  private _statusMessages: string[];
   private _channel: UseChannelResult<RealtimeMessage>;
   private _session: UseStateResult<string>;
   private _statusMessagesSetter: StateSetter<string[]>;
@@ -80,7 +79,7 @@ class UnscrambleGame {
     this._ui = context.ui;
     this.redis = context.redis;
     this._ScreenIsWide = this.isScreenWide();
-
+    this._statusMessages = [];
     this._statusMessagesSetter = statusMessageSetter;
     /*
     this._statusMessages = context.useState(async () => {
@@ -127,13 +126,14 @@ class UnscrambleGame {
         console.log("Message payload received:");
         console.log(payload);
 
-        var messages = smessages;
+        var messages = this._statusMessages;
         messages.push(msg.payload.username+" made the name: "+ msg.payload.name.toLocaleUpperCase()+". Well done!");
         //TODO: Add points for user, and sync to Redis.
         if( messages.length > 2) {
           messages.shift();//Remove last message if we already have 10 messages.
         }
         this._statusMessagesSetter(messages);
+        this._statusMessages = messages;
 
         if (msg.session === this._session[0] || msg.postId !== this._myPostId[0]) {
           //Ignore my updates b/c they have already been rendered
@@ -302,6 +302,9 @@ Devvit.addCustomPostType({
   render: (_context) => {
 
     const myPostId = _context.postId ?? 'defaultPostId';
+    const sm:string[] = [];
+    const [smessages, setSmessages] = useState(sm);
+
     const game = new UnscrambleGame(_context, myPostId, setSmessages);
 
     const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (<>
