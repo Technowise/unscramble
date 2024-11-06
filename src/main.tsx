@@ -1,4 +1,3 @@
-// Learn more at developers.reddit.com/docs
 import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext} from '@devvit/public-api';
 
 Devvit.configure({
@@ -6,6 +5,11 @@ Devvit.configure({
   realtime: true,
   redis: true,
 });
+
+enum PayloadType {
+  SubmittedName,
+  NewNamesAndLetters
+}
 
 type namesAndLetters = {
   letters: string;
@@ -17,15 +21,14 @@ type UserGameState = {
   userLetters: string;
 }
 
-type Payload = {
+type UserSubmittedName = {
   name: string;
   username: string;
 };
 
 type RealtimeMessage = {
-  payload: Payload;
-  session: string;
-  postId: string;
+  payload: UserSubmittedName | namesAndLetters;
+  type: PayloadType;
 };
 
 function sessionId(): string {
@@ -45,8 +48,6 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
   return result;
 }
 
-
-
 //Later, this should come from config value for the subreddit, from redis.
 const character_names = ["eric", "kenny", "kyle", "stan", 
                           "butters", "token", "wendy", "bebe", "tweek", "craig", "timmy", 
@@ -56,7 +57,6 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "terrance", "philippe", "jimbo", "hankey",
                           "satan", "scott",
                           "jesus", "buddha"];
-
 
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
@@ -69,14 +69,10 @@ Devvit.addSchedulerJob({
     const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
     await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
     console.log("Stored names into redis");
-
-    const message:Payload = {name:"TestName",username:"testUser"};
-    const rm: RealtimeMessage = { payload: message, session: "x", postId: "x" };
-
+    const rm: RealtimeMessage = { payload: namesAndLettersObj, type: PayloadType.NewNamesAndLetters};
     await context.realtime.send('events', rm);
   },
 });
-
 
 async function createChangeLettersThread(context:TriggerContext) {
   const changeLettersJobId = await context.redis.get('changeLettersJobId');
@@ -113,8 +109,6 @@ Devvit.addTrigger({
     createChangeLettersThread(context);
   },
 });
-
-
 
 function getRandomNamesAndLetters(){
   var name1index = Math.floor(Math.random() * character_names.length/2);
@@ -193,24 +187,34 @@ class UnscrambleGame {
         console.log("Message payload received, here's the message:");
         console.log(payload);
 
-        var messages = this.statusMessages;
-        messages.push(msg.payload.username+" made the name: "+ msg.payload.name.toLocaleUpperCase()+". Well done!");
-        //TODO: Add points for user, and sync to Redis.
-        if( messages.length > 2) {
-          messages.shift();//Remove last message if we already have 10 messages.
+        if(msg.type == PayloadType.SubmittedName) { //TODO: Add points for user, and sync to Redis.
+          var messages = this.statusMessages;
+          const pl = msg.payload as UserSubmittedName; 
+          messages.push(pl.username+" made the name: "+ pl.name.toLocaleUpperCase()+". Well done!");
+          if( messages.length > 3) {
+            messages.shift();//Remove last message if we already have 10 messages.
+          }
+          this.statusMessages =  messages;
         }
-        this.statusMessages =  messages;
-
-        if (msg.session === this._session[0] || msg.postId !== this._myPostId[0]) {
-          //Ignore my updates b/c they have already been rendered
-          return;
+        else if (msg.type == PayloadType.NewNamesAndLetters ){
+          //TODO: Show the answer in the messages block, and only then show the new letters.
+          console.log("New names and letters received:");
+          console.log(msg.payload);
+          const nl = msg.payload as namesAndLetters;
+          this.namesAndLetters = nl;
+          var messages = this.statusMessages;
+          messages.push("Which two character names can you make out of these letters? "+nl.letters );
+          if( messages.length > 3) {
+            messages.shift();//Remove last message if we already have 10 messages.
+          }
+          this.statusMessages =  messages;
+          const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters};
+          this.userGameStatus = UGS;
         }
-        //updateCanvas(payload.index, payload.color);
       },
     });
 
     this._channel.subscribe();
-
   }
 
   public resetSelectedLetters() {
@@ -295,19 +299,15 @@ class UnscrambleGame {
   };
 
   public async verifyName(){
-
     if( character_names.includes(this.userGameStatus.userSelectedLetters) ) {
       this._context.ui.showToast({
         text: "That's a correct name, congratulations!",
         appearance: 'success',
       });
-
-      const payload: Payload = { username: this.currentUsername, name: this.userGameStatus.userSelectedLetters };
-      const message: RealtimeMessage = { payload, session: this._session[0], postId: this.myPostId };
-      await this._channel.send(message);
-
+      const pl:UserSubmittedName = {name:this.userGameStatus.userSelectedLetters,username: this.currentUsername};
+      const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedName};
+      await this._channel.send(rm);
       this.resetSelectedLetters();
-
     }
     else {
       this._context.ui.showToast({
@@ -315,7 +315,6 @@ class UnscrambleGame {
         appearance: 'neutral',
       });      
     }
-
   }
 
 }
