@@ -64,31 +64,37 @@ const milliseconds = redisExpireTimeSeconds * 1000;
 const expireTime = new Date(dateNow.getTime() + milliseconds);
 
 Devvit.addSchedulerJob({
-  name: 'change_letters_thread',  
+  name: 'change_letters_job',  
   onRun: async(event, context) => {
     const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
     await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
     console.log("Stored names into redis");
     const rm: RealtimeMessage = { payload: namesAndLettersObj, type: PayloadType.NewNamesAndLetters};
     await context.realtime.send('events', rm);
+
+    //TODO: update changeLettersJobId redis value so that it does not expire.
   },
 });
 
 async function createChangeLettersThread(context:TriggerContext) {
+  var jobExists = false;
   const changeLettersJobId = await context.redis.get('changeLettersJobId');
-  if (changeLettersJobId && changeLettersJobId.length > 0) {//Job already exists.
-    return; //We need to re-setup job only when runJob configuration needs to be changed.
+  if ( changeLettersJobId && changeLettersJobId.length > 0) {
+    const allJobs = await context.scheduler.listJobs();
+    jobExists = allJobs.some(job => job.id === changeLettersJobId);
+    console.log("Does changeLettersJob exist? "+jobExists);
   }
-  else { //schedule to change letters of the game.
+
+  if(!jobExists) { //schedule to change letters of the game.
     try {
       const jobId = await context.scheduler.runJob({
         //cron: '*/10 * * * *',
         cron: '* * * * *',
-        name: 'change_letters_thread',
+        name: 'change_letters_job',
         data: {},
       });
       await context.redis.set('changeLettersJobId', jobId, {expiration: expireTime});
-      console.log("Created job for changeLetters.");
+      console.log("Created job for changeLetters: "+jobId);
     } catch (e) {
       console.log('error - was not able to create job:', e);
       throw e;
@@ -203,7 +209,7 @@ class UnscrambleGame {
           const nl = msg.payload as namesAndLetters;
           this.namesAndLetters = nl;
           var messages = this.statusMessages;
-          messages.push("Which two character names can you make out of these letters? "+nl.letters );
+          messages.push("Which two character names can you make out of these letters? "+nl.letters.toUpperCase() );
           if( messages.length > 3) {
             messages.shift();//Remove last message if we already have 10 messages.
           }
