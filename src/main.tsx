@@ -1,9 +1,10 @@
 // Learn more at developers.reddit.com/docs
-import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult} from '@devvit/public-api';
+import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext} from '@devvit/public-api';
 
 Devvit.configure({
   redditAPI: true,
   realtime: true,
+  redis: true,
 });
 
 type namesAndLetters = {
@@ -56,6 +57,79 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "satan", "scott",
                           "jesus", "buddha"];
 
+
+const redisExpireTimeSeconds = 2592000;//30 days in seconds.
+let dateNow = new Date();
+const milliseconds = redisExpireTimeSeconds * 1000;
+const expireTime = new Date(dateNow.getTime() + milliseconds);
+
+Devvit.addSchedulerJob({
+  name: 'change_letters_thread',  
+  onRun: async(event, context) => {
+    const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
+    await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
+    console.log("Stored names into redis");
+
+    const message:Payload = {name:"TestName",username:"testUser"};
+    const rm: RealtimeMessage = { payload: message, session: "x", postId: "x" };
+
+    await context.realtime.send('events', rm);
+  },
+});
+
+
+async function createChangeLettersThread(context:TriggerContext) {
+  const changeLettersJobId = await context.redis.get('changeLettersJobId');
+  if (changeLettersJobId && changeLettersJobId.length > 0) {//Job already exists.
+    return; //We need to re-setup job only when runJob configuration needs to be changed.
+  }
+  else { //schedule to change letters of the game.
+    try {
+      const jobId = await context.scheduler.runJob({
+        //cron: '*/10 * * * *',
+        cron: '* * * * *',
+        name: 'change_letters_thread',
+        data: {},
+      });
+      await context.redis.set('changeLettersJobId', jobId, {expiration: expireTime});
+      console.log("Created job for changeLetters.");
+    } catch (e) {
+      console.log('error - was not able to create job:', e);
+      throw e;
+    }
+  }
+}
+
+Devvit.addTrigger({  
+  event: 'AppInstall',  
+  onEvent: async (_, context) => {
+    createChangeLettersThread(context);
+  },
+});
+
+Devvit.addTrigger({  
+  event: 'AppUpgrade',  
+  onEvent: async (_, context) => {
+    createChangeLettersThread(context);
+  },
+});
+
+
+
+function getRandomNamesAndLetters(){
+  var name1index = Math.floor(Math.random() * character_names.length/2);
+  var name2index = Math.floor(Math.random() * character_names.length/2);
+
+  //Pick first name from first half of the names array, Pick second name from second half of the names array.
+
+  var allLetters = character_names[name1index] + character_names[ character_names.length/2 + name2index];
+
+  var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
+  console.log("Shuffled letters: "+ shuffledLetters);
+
+  return {names: [ character_names[name1index], character_names[ character_names.length/2 + name2index] ], letters: shuffledLetters };
+}
+
 class UnscrambleGame {
   private _redisKeyPrefix: string;
   private redis: RedisClient;
@@ -97,7 +171,7 @@ class UnscrambleGame {
 
     this._namesAndLettersObj = context.useState<namesAndLetters>(
       async() =>{
-        const n:namesAndLetters = this.getRandomNamesAndLetters();
+        const n:namesAndLetters = getRandomNamesAndLetters();
         return n;
       }
     );
@@ -113,9 +187,10 @@ class UnscrambleGame {
     this._channel = useChannel<RealtimeMessage>({
       name: 'events',
       onMessage: (msg) => {
-
+        console.log("Here's the message object:");
+        console.log(msg);
         const payload = msg.payload;
-        console.log("Message payload received:");
+        console.log("Message payload received, here's the message:");
         console.log(payload);
 
         var messages = this.statusMessages;
@@ -130,7 +205,6 @@ class UnscrambleGame {
           //Ignore my updates b/c they have already been rendered
           return;
         }
-
         //updateCanvas(payload.index, payload.color);
       },
     });
@@ -144,20 +218,6 @@ class UnscrambleGame {
     ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
     ugs.userSelectedLetters = "";
     this.userGameStatus = ugs;
-  }
-
-  public getRandomNamesAndLetters(){
-    var name1index = Math.floor(Math.random() * character_names.length/2);
-    var name2index = Math.floor(Math.random() * character_names.length/2);
-
-    //Pick first name from first half of the names array, Pick second name from second half of the names array.
-
-    var allLetters = character_names[name1index] + character_names[ character_names.length/2 + name2index];
-
-    var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
-    console.log("Shuffled letters: "+ shuffledLetters);
-
-    return {names: [ character_names[name1index], character_names[ character_names.length/2 + name2index] ], letters: shuffledLetters };
   }
 
   public addCharacterToSelected(index:number) {
