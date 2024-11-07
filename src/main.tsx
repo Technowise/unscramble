@@ -201,7 +201,6 @@ class UnscrambleGame {
         }
       }
     );
-    //this._namesAndLettersObj = this.getRandomNamesAndLetters();
 
     this._userGameStatus = context.useState<UserGameState>(
       async() =>{
@@ -213,48 +212,40 @@ class UnscrambleGame {
     this._channel = useChannel<RealtimeMessage>({
       name: 'events',
       onMessage: (msg) => {
-        console.log("Here's the message object:");
-        console.log(msg);
         const payload = msg.payload;
         console.log("Message payload received, here's the message:");
         console.log(payload);
 
         if(msg.type == PayloadType.SubmittedName) { //TODO: Add points for user, and sync to Redis.
-          var messages = this.statusMessages;
-          const pl = msg.payload as UserSubmittedName; 
-          messages.push(pl.username+" made the name: "+ pl.name.toLocaleUpperCase()+". Well done!");
-          if( messages.length > 3) {
-            messages.shift();//Remove last message if we already have 10 messages.
-          }
-          this.statusMessages =  messages;
+          const pl = msg.payload as UserSubmittedName;      
+          this.pushStatusMessage(pl.username+" made the name: "+ pl.name.toLocaleUpperCase()+". Well done!");
         }
         else if (msg.type == PayloadType.NewNamesAndLetters ){
           //TODO: Show the answer in the messages block, and only then show the new letters.
           console.log("New names and letters received:");
           console.log(msg.payload);
           const nl = msg.payload as namesAndLetters;
-          this.namesAndLetters = nl;
-          var messages = this.statusMessages;
-          messages.push("Which two names can you make out of "+nl.letters.toUpperCase()+" ?" );
-          if( messages.length > 3) {
-            messages.shift();//Remove last message if we already have 10 messages.
-          }
-          this.statusMessages =  messages;
+          this.namesAndLetters = nl;        
+          this.pushStatusMessage("Which two names can you make out of "+nl.letters.toUpperCase()+" ?" );
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters};
           this.userGameStatus = UGS;
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
-          var messages = this.statusMessages;
-          messages.push("Answer: Two names were: "+this.namesAndLetters.names[0].toUpperCase() +" and "+this.namesAndLetters.names[1].toUpperCase() );
-          if( messages.length > 3) {
-            messages.shift();//Remove last message if we already have 10 messages.
-          }
-          this.statusMessages =  messages;
+          this.pushStatusMessage("Answer: Two names were: "+this.namesAndLetters.names[0].toUpperCase() +" and "+this.namesAndLetters.names[1].toUpperCase() );          
         }
       },
     });
 
     this._channel.subscribe();
+  }
+
+  public pushStatusMessage(message:string){
+    var messages = this.statusMessages;
+    messages.push(message);
+    if( messages.length > 4) {
+      messages.shift();//Remove last message if we already have 10 messages.
+    }
+    this.statusMessages =  messages;
   }
 
   public resetSelectedLetters() {
@@ -479,8 +470,8 @@ Devvit.addCustomPostType({
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#ccc'>
 
-          <text style="heading" size="xlarge" weight='bold' alignment="center middle" color='black' width="330px" height="50px" wrap>
-            Which two Southpark character names can you make out of these letters?
+          <text style="heading" size="large" weight='bold' alignment="center middle" color='black' width="330px" height="50px" wrap>
+            Which Southpark character names can you make out of these letters?
           </text>
           <spacer size="xsmall" />
 
@@ -503,7 +494,7 @@ Devvit.addCustomPostType({
           <text style="heading" size="medium" weight='bold' color='black'>
             Game Feed
           </text>
-          <vstack borderColor='grey' padding='small' height="140px" width="330px" backgroundColor='white'>
+          <vstack borderColor='grey' padding='small' height="170px" width="330px" backgroundColor='white'>
             <vstack>
             {
                 game.statusMessages.map((message) => (
