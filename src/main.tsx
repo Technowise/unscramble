@@ -66,6 +66,7 @@ const expireTime = new Date(dateNow.getTime() + milliseconds);
 Devvit.addSchedulerJob({
   name: 'change_letters_job',  
   onRun: async(event, context) => {
+    console.log("running change_letters_job");
     const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
     await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
     console.log("Stored names into redis");
@@ -77,29 +78,25 @@ Devvit.addSchedulerJob({
 });
 
 async function createChangeLettersThread(context:TriggerContext) {
-  var jobExists = false;
   const changeLettersJobId = await context.redis.get('changeLettersJobId');
-  if ( changeLettersJobId && changeLettersJobId.length > 0) {
-    const allJobs = await context.scheduler.listJobs();
-    jobExists = allJobs.some(job => job.id === changeLettersJobId);
-    console.log("Does changeLettersJob exist? "+jobExists);
+  if ( changeLettersJobId && changeLettersJobId.length > 0) {//Cancel previous job if it exists.
+    await context.scheduler.cancelJob(changeLettersJobId);
   }
 
-  if(!jobExists) { //schedule to change letters of the game.
-    try {
-      const jobId = await context.scheduler.runJob({
-        //cron: '*/10 * * * *',
-        cron: '* * * * *',
-        name: 'change_letters_job',
-        data: {},
-      });
-      await context.redis.set('changeLettersJobId', jobId, {expiration: expireTime});
-      console.log("Created job for changeLetters: "+jobId);
-    } catch (e) {
-      console.log('error - was not able to create job:', e);
-      throw e;
-    }
+  try {
+    const jobId = await context.scheduler.runJob({
+      //cron: '*/10 * * * *',
+      cron: '* * * * *',
+      name: 'change_letters_job',
+      data: {},
+    });
+    await context.redis.set('changeLettersJobId', jobId, {expiration: expireTime});
+    console.log("Created job schedule for changeLetters: "+jobId);
+  } catch (e) {
+    console.log('error - was not able to create job:', e);
+    throw e;
   }
+  
 }
 
 Devvit.addTrigger({  
@@ -171,8 +168,18 @@ class UnscrambleGame {
 
     this._namesAndLettersObj = context.useState<namesAndLetters>(
       async() =>{
-        const n:namesAndLetters = getRandomNamesAndLetters();
-        return n;
+        const namesAndLettersJson = await this.redis.get('namesAndLetters');
+        if ( namesAndLettersJson && namesAndLettersJson.length > 0) {//Cancel previous job if it exists.
+          const namesAndLettersObj = JSON.parse(namesAndLettersJson);
+          const nl = namesAndLettersObj as namesAndLetters;
+          return nl;
+        }
+        else {
+          const nl:namesAndLetters = getRandomNamesAndLetters();
+          await context.redis.set('namesAndLetters',  JSON.stringify(nl), {expiration: expireTime});
+          console.log("Stored names into redis");
+          return nl;
+        }
       }
     );
     //this._namesAndLettersObj = this.getRandomNamesAndLetters();
@@ -209,7 +216,7 @@ class UnscrambleGame {
           const nl = msg.payload as namesAndLetters;
           this.namesAndLetters = nl;
           var messages = this.statusMessages;
-          messages.push("Which two character names can you make out of these letters? "+nl.letters.toUpperCase() );
+          messages.push("Which two names can you make out of "+nl.letters.toUpperCase()+" ?" );
           if( messages.length > 3) {
             messages.shift();//Remove last message if we already have 10 messages.
           }
@@ -375,8 +382,8 @@ Devvit.addCustomPostType({
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' >
-        <text size="large" weight='bold'>Selected letters:</text>
-        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="large" weight='bold'>None</text>: ""}
+        <text size="large" weight='bold' color='black'>Selected letters:</text>
+        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="large" weight='bold' color="black">None</text>: ""}
         {splitArray(selectedLetterCells, 10).map((row) => ( <>
           <hstack>{row}</hstack>
           <spacer size="xsmall" />
@@ -425,7 +432,7 @@ Devvit.addCustomPostType({
             {
                 game.statusMessages.map((message) => (
                   <>
-                  <text wrap>{message}</text> 
+                  <text wrap color="black">{message}</text> 
                   <spacer size="small"/>
                   </>
               ))}
