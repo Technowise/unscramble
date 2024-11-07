@@ -8,7 +8,8 @@ Devvit.configure({
 
 enum PayloadType {
   SubmittedName,
-  NewNamesAndLetters
+  NewNamesAndLetters,
+  TriggerShowAnswer
 }
 
 type namesAndLetters = {
@@ -26,8 +27,15 @@ type UserSubmittedName = {
   username: string;
 };
 
+type answeredNames = {
+  names: UserSubmittedName[];
+};
+
+type ShowAnswer = {
+};
+
 type RealtimeMessage = {
-  payload: UserSubmittedName | namesAndLetters;
+  payload: UserSubmittedName | namesAndLetters| ShowAnswer;
   type: PayloadType;
 };
 
@@ -67,26 +75,37 @@ Devvit.addSchedulerJob({
   name: 'change_letters_job',  
   onRun: async(event, context) => {
     console.log("running change_letters_job");
+    const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
+    await context.realtime.send('events', rms);
+    //TODO: Add settimeout of 5 seconds before setting new set of letters.
     const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
     await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
     console.log("Stored names into redis");
     const rm: RealtimeMessage = { payload: namesAndLettersObj, type: PayloadType.NewNamesAndLetters};
     await context.realtime.send('events', rm);
-
-    //TODO: update changeLettersJobId redis value so that it does not expire.
+    await context.redis.expire('changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for changeLettersJobId.
+    await context.redis.del('answeredNames');
   },
 });
 
 async function createChangeLettersThread(context:TriggerContext) {
+
+  const allJobs = await context.scheduler.listJobs();
+
+  for(var i=0; i< allJobs.length; i++ ){
+    await context.scheduler.cancelJob(allJobs[i].id);//delete all old schedules.
+  }
+
+  /*
   const changeLettersJobId = await context.redis.get('changeLettersJobId');
   if ( changeLettersJobId && changeLettersJobId.length > 0) {//Cancel previous job if it exists.
     await context.scheduler.cancelJob(changeLettersJobId);
-  }
+  } */
 
   try {
     const jobId = await context.scheduler.runJob({
       //cron: '*/10 * * * *',
-      cron: '* * * * *',
+      cron: '*/2 * * * *',
       name: 'change_letters_job',
       data: {},
     });
@@ -224,6 +243,14 @@ class UnscrambleGame {
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters};
           this.userGameStatus = UGS;
         }
+        else if  (msg.type == PayloadType.TriggerShowAnswer) {
+          var messages = this.statusMessages;
+          messages.push("Answer: Two names were: "+this.namesAndLetters.names[0].toUpperCase() +" and "+this.namesAndLetters.names[1].toUpperCase() );
+          if( messages.length > 3) {
+            messages.shift();//Remove last message if we already have 10 messages.
+          }
+          this.statusMessages =  messages;
+        }
       },
     });
 
@@ -311,16 +338,64 @@ class UnscrambleGame {
     this._context.ui.navigateTo('https://www.reddit.com/r/Spottit/comments/1ethp30/introduction_to_spottit_game/');
   };
 
+  public async getAnsweredNames() {
+    const answeredNamesJson = await this.redis.get('answeredNames');
+    if( answeredNamesJson && answeredNamesJson.length > 0 ) {
+      const answeredNamesObj = JSON.parse(answeredNamesJson);
+      const an = answeredNamesObj as answeredNames;
+      return an;
+    }
+    else {
+      const an:answeredNames = {names:[]}
+      return an;
+    }
+  }
+
   public async verifyName(){
+
+    const an = await this.getAnsweredNames();
+
+    console.log("Answered names:");
+    console.log(an);
+
     if( character_names.includes(this.userGameStatus.userSelectedLetters) ) {
-      this._context.ui.showToast({
-        text: "That's a correct name, congratulations!",
-        appearance: 'success',
-      });
-      const pl:UserSubmittedName = {name:this.userGameStatus.userSelectedLetters,username: this.currentUsername};
-      const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedName};
-      await this._channel.send(rm);
-      this.resetSelectedLetters();
+
+      //Check if the submitted name was already answered by someone.
+      var alreadyAnswered = false;
+      for(var i=0; i< an.names.length; i++) {//TODO: Use find method for this lookup later.
+
+        if( an.names[i].name ==  this.userGameStatus.userSelectedLetters) {
+          alreadyAnswered = true;
+          this._context.ui.showToast({
+            text: "This name was already answered by /u/"+an.names[i].username,
+            appearance:"neutral",
+          });
+        }
+      }
+
+      if( ! alreadyAnswered) {
+        this._context.ui.showToast({
+          text: "That's a correct name, congratulations!",
+          appearance: 'success',
+        });
+        const pl:UserSubmittedName = { name:this.userGameStatus.userSelectedLetters, username: this.currentUsername};
+        const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedName};
+        await this._channel.send(rm);
+        this.resetSelectedLetters();
+        an.names.push(pl);
+        if( an.names.length == this.namesAndLetters.names.length ) {//All names are already answered. Time to change the names and letters.
+          const nl:namesAndLetters = getRandomNamesAndLetters();
+          await this.redis.set('namesAndLetters',  JSON.stringify(nl), {expiration: expireTime});
+          console.log("Stored new names into redis");
+          const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewNamesAndLetters};
+          await this._channel.send(rm);
+          await this.redis.del('answeredNames');
+          //TODO: Resetup scheduler so that it only gets triggered only after x minutes of time after this change.
+        }
+        else {//add to answered names list in redis.
+          await this.redis.set('answeredNames',  JSON.stringify(an), {expiration: expireTime});
+        }
+      }
     }
     else {
       this._context.ui.showToast({
@@ -381,9 +456,9 @@ Devvit.addCustomPostType({
     ));
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' >
-        <text size="large" weight='bold' color='black'>Selected letters:</text>
-        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="large" weight='bold' color="black">None</text>: ""}
+      <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' minHeight="90px" >
+        <text size="medium" weight='bold' color='black'>Selected letters:</text>
+        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="medium" color="black">None</text>: ""}
         {splitArray(selectedLetterCells, 10).map((row) => ( <>
           <hstack>{row}</hstack>
           <spacer size="xsmall" />
@@ -402,12 +477,16 @@ Devvit.addCustomPostType({
     return (
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
-        <vstack height="100%" width="344px" alignment="center top" padding="large" backgroundColor='#ccc'>
+        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#ccc'>
 
-          <text style="heading" size="xlarge" weight='bold' alignment="center middle" color='black' width="330px" height="80px" wrap>
+          <text style="heading" size="xlarge" weight='bold' alignment="center middle" color='black' width="330px" height="50px" wrap>
             Which two Southpark character names can you make out of these letters?
           </text>
+          <spacer size="xsmall" />
 
+          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="312px" wrap>
+            Click on the characters to select.
+          </text>
           <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' >
             {splitArray(letterCells, 10).map((row) => ( <>
               <hstack>{row}</hstack>
@@ -416,9 +495,6 @@ Devvit.addCustomPostType({
             ))}
           </vstack>
 
-          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="312px" wrap>
-            Click on the characters to select.
-          </text>
           <spacer size="medium" />
 
           <SelectedLettersBlock game={game} />
@@ -432,8 +508,8 @@ Devvit.addCustomPostType({
             {
                 game.statusMessages.map((message) => (
                   <>
-                  <text wrap color="black">{message}</text> 
-                  <spacer size="small"/>
+                    <text wrap color="black" size="small">{message}</text> 
+                    <spacer size="small"/>
                   </>
               ))}
             </vstack>
