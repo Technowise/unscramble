@@ -68,13 +68,13 @@ const character_names = ["eric", "kenny", "kyle", "stan",
 
 const MaxMessagesCount = 5;
 
-const praiseMessages = ["Good job!", "Well done!"];
+const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
 const expireTime = new Date(dateNow.getTime() + milliseconds);
 const textColour = 'white';
-const borderColour = "rgb(54, 52, 48)";
+const borderColour = "#7fa78c";
 const letterBorderColour = 'black';
 
 Devvit.addSchedulerJob({
@@ -443,18 +443,20 @@ Devvit.addMenuItem({
       subredditName: subreddit.name,
       // The preview appears while the post loads
       preview: (
-        <vstack height="100%" width="100%" alignment="middle center">
-          <image
-            url="loading.gif"
-            description="Loading ..."
-            height={'140px'}
-            width={'140px'}
-            imageHeight={'240px'}
-            imageWidth={'240px'}
-          />
-          <spacer size="small" />
-          <text size="large">Loading ...</text>
-        </vstack>
+        <vstack width={'100%'} height={'100%'} alignment="center middle">
+        <image
+          url="loading.gif"
+          description="Loading ..."
+          height={'140px'}
+          width={'140px'}
+          imageHeight={'240px'}
+          imageWidth={'240px'}
+        />
+        <spacer size="small" />
+        <text size="large" weight="bold">
+          Loading Unscramble post...
+        </text>
+      </vstack>
       ),
     });
     ui.showToast({ text: 'Created an Unscramble post!' });
@@ -488,20 +490,24 @@ Devvit.addCustomPostType({
     ));
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="90px" >
+      <vstack>
         <text size="medium" weight='bold' color={textColour}>Selected letters:</text>
-        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="medium" color={textColour}>None</text>: ""}
-        {splitArray(selectedLetterCells, 10).map((row) => ( <>
-          <hstack>{row}</hstack>
-          <spacer size="xsmall" />
-        </>
-        ))}
-        <spacer size="medium" />
-        <hstack alignment="center middle" width="100%">
-          <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
-          <button size="small" icon='close' onPress={() => game.resetSelectedLetters()}>Reset</button>
-        </hstack>
-      </vstack>);
+        <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="85px" >
+          
+          {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="medium" color={textColour} height="30px">None</text>: ""}
+          {splitArray(selectedLetterCells, 10).map((row) => ( <>
+            <hstack>{row}</hstack>
+            <spacer size="xsmall" />
+          </>
+          ))}
+          <spacer size="small" />
+          <hstack alignment="center middle" width="100%">
+            <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
+            <button size="small" icon='undo' onPress={() => game.resetSelectedLetters()}>Reset</button>
+          </hstack>
+        </vstack>
+      </vstack>
+      );
 
     console.log("here are the random names:");
     console.log(game.names);
@@ -509,8 +515,8 @@ Devvit.addCustomPostType({
     return (
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
-        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='rgb(26, 40, 45)' cornerRadius="small">
-          <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="50px" wrap>
+        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' cornerRadius="small">
+          <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
             Which Southpark character names can you make out of these letters?
           </text>
           <spacer size="xsmall" />
@@ -518,23 +524,21 @@ Devvit.addCustomPostType({
           <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
             Click on the characters to select.
           </text>
-          <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' >
+          <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
             {splitArray(letterCells, 10).map((row) => ( <>
               <hstack>{row}</hstack>
               <spacer size="xsmall" />
             </>
             ))}
           </vstack>
-
-          <spacer size="medium" />
-
+          <spacer size="xsmall" />
           <SelectedLettersBlock game={game} />
 
-          <spacer size="medium" />  
-          <text style="heading" size="medium" weight='bold' color={textColour}>
-            Game Feed
+          <spacer size="small" />  
+          <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
+            Game Activity Feed:
           </text>
-          <vstack borderColor={borderColour} padding='small' height="170px" width="330px" backgroundColor='white'>
+          <vstack borderColor={borderColour} padding='xsmall' height="165px" width="330px" backgroundColor='white'>
             <vstack>
             {
                 game.statusMessages.map((message) => (
@@ -545,6 +549,12 @@ Devvit.addCustomPostType({
               ))}
             </vstack>
           </vstack>
+          <spacer size="xsmall" />
+          <hstack alignment="center middle" width="100%">
+            <button size="small" icon='list-numbered'>Leaderboard</button> 
+            <spacer size="small" />
+            <button size="small" icon='help'>Help</button>
+          </hstack>
         </vstack>
       </vstack>
     </blocks>
