@@ -502,7 +502,7 @@ Devvit.addCustomPostType({
           ))}
           <spacer size="small" />
           <hstack alignment="center middle" width="100%">
-            <button size="small" icon='close' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
+            <button size="small" icon='approve' onPress={() => game.verifyName()}>Submit</button> <spacer size="small" />
             <button size="small" icon='undo' onPress={() => game.resetSelectedLetters()}>Reset</button>
           </hstack>
         </vstack>
