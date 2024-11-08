@@ -522,7 +522,7 @@ Devvit.addCustomPostType({
           <spacer size="xsmall" />
 
           <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
-            Click on the characters to select.
+            Click on the letters to select.
           </text>
           <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
             {splitArray(letterCells, 10).map((row) => ( <>
