@@ -73,6 +73,9 @@ const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
 const expireTime = new Date(dateNow.getTime() + milliseconds);
+const textColour = 'white';
+const borderColour = "rgb(54, 52, 48)";
+const letterBorderColour = 'black';
 
 Devvit.addSchedulerJob({
   name: 'change_letters_job',  
@@ -441,6 +444,15 @@ Devvit.addMenuItem({
       // The preview appears while the post loads
       preview: (
         <vstack height="100%" width="100%" alignment="middle center">
+          <image
+            url="loading.gif"
+            description="Loading ..."
+            height={'140px'}
+            width={'140px'}
+            imageHeight={'240px'}
+            imageWidth={'240px'}
+          />
+          <spacer size="small" />
           <text size="large">Loading ...</text>
         </vstack>
       ),
@@ -460,7 +472,7 @@ Devvit.addCustomPostType({
     const game = new UnscrambleGame(_context, myPostId);
 
     const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (<>
-        <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
+        <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor={letterBorderColour} cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
           <text size="large" color="black" weight="bold">{letter.toUpperCase()}</text>
         </vstack>
         <spacer size="xsmall" />
@@ -468,7 +480,7 @@ Devvit.addCustomPostType({
     ));
 
     const selectedLetterCells = game.userGameStatus.userSelectedLetters.split("").map((letter, index) => (<>
-        <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor="black" cornerRadius="small" onPress={() => game.removeCharacter(index)}>
+        <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor={letterBorderColour} cornerRadius="small" onPress={() => game.removeCharacter(index)}>
           <text size="large" color="black" weight="bold">{letter.toUpperCase()}</text>
         </vstack>
       <spacer size="xsmall" />
@@ -476,9 +488,9 @@ Devvit.addCustomPostType({
     ));
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' minHeight="90px" >
-        <text size="medium" weight='bold' color='black'>Selected letters:</text>
-        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="medium" color="black">None</text>: ""}
+      <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="90px" >
+        <text size="medium" weight='bold' color={textColour}>Selected letters:</text>
+        {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="medium" color={textColour}>None</text>: ""}
         {splitArray(selectedLetterCells, 10).map((row) => ( <>
           <hstack>{row}</hstack>
           <spacer size="xsmall" />
@@ -497,17 +509,16 @@ Devvit.addCustomPostType({
     return (
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
-        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#ccc'>
-
-          <text style="heading" size="large" weight='bold' alignment="center middle" color='black' width="330px" height="50px" wrap>
+        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='rgb(26, 40, 45)' cornerRadius="small">
+          <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="50px" wrap>
             Which Southpark character names can you make out of these letters?
           </text>
           <spacer size="xsmall" />
 
-          <text style="heading" size="small" weight='bold' alignment="center middle" color='black' width="312px" wrap>
+          <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
             Click on the characters to select.
           </text>
-          <vstack alignment="start middle" width="312px" border="thin" borderColor='black' padding='small' >
+          <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' >
             {splitArray(letterCells, 10).map((row) => ( <>
               <hstack>{row}</hstack>
               <spacer size="xsmall" />
@@ -520,10 +531,10 @@ Devvit.addCustomPostType({
           <SelectedLettersBlock game={game} />
 
           <spacer size="medium" />  
-          <text style="heading" size="medium" weight='bold' color='black'>
+          <text style="heading" size="medium" weight='bold' color={textColour}>
             Game Feed
           </text>
-          <vstack borderColor='grey' padding='small' height="170px" width="330px" backgroundColor='white'>
+          <vstack borderColor={borderColour} padding='small' height="170px" width="330px" backgroundColor='white'>
             <vstack>
             {
                 game.statusMessages.map((message) => (
