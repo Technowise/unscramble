@@ -66,6 +66,7 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "satan", "scott",
                           "jesus", "buddha"];
 
+const praiseMessages = ["Well done!", "Good job!"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -167,6 +168,10 @@ class UnscrambleGame {
     this._ScreenIsWide = this.isScreenWide();
     this._statusMessages = context.useState(async () => {
       var messages: string[] = [];
+      var smJson = await this.redis.get('statusMessages');
+      if( smJson && smJson.length > 0 ) {
+        messages = JSON.parse(smJson);
+      }
       return messages;//TODO: set this up to get list of current status messages from redis.
     });
   
@@ -217,16 +222,16 @@ class UnscrambleGame {
         console.log(payload);
 
         if(msg.type == PayloadType.SubmittedName) { //TODO: Add points for user, and sync to Redis.
+          const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedName;      
-          this.pushStatusMessage(pl.username+" made the name: "+ pl.name.toLocaleUpperCase()+". Well done!");
+          this.pushStatusMessage(pl.username+" made the name: "+ pl.name.toLocaleUpperCase()+". "+ praiseMessage);
         }
         else if (msg.type == PayloadType.NewNamesAndLetters ){
-          //TODO: Show the answer in the messages block, and only then show the new letters.
           console.log("New names and letters received:");
           console.log(msg.payload);
           const nl = msg.payload as namesAndLetters;
           this.namesAndLetters = nl;        
-          this.pushStatusMessage("Which two names can you make out of "+nl.letters.toUpperCase()+" ?" );
+          this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?" );
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters};
           this.userGameStatus = UGS;
         }
@@ -239,13 +244,14 @@ class UnscrambleGame {
     this._channel.subscribe();
   }
 
-  public pushStatusMessage(message:string){
+  public async pushStatusMessage(message:string){
     var messages = this.statusMessages;
     messages.push(message);
-    if( messages.length > 4) {
+    if( messages.length > 5) {
       messages.shift();//Remove last message if we already have 10 messages.
     }
     this.statusMessages =  messages;
+    await this.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
   }
 
   public resetSelectedLetters() {
