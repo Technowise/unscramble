@@ -1,3 +1,4 @@
+Show seconds remaining to solve, update it every 5 seconds. 
 Add form to get input of character names and TV Show name while creating post. Optional input for background image.
 Add leaderboard with number of names solved by each user.
 Add created timestamp to the namesandletters object, show countdown timer for time left to solve the present letters.

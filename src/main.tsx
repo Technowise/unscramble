@@ -1,4 +1,4 @@
-import { Devvit, useState, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext} from '@devvit/public-api';
+import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext, JobContext} from '@devvit/public-api';
 
 Devvit.configure({
   redditAPI: true,
@@ -66,7 +66,9 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "satan", "scott",
                           "jesus", "buddha"];
 
-const praiseMessages = ["Well done!", "Good job!"];
+const MaxMessagesCount = 5;
+
+const praiseMessages = ["Good job!", "Well done!"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -78,30 +80,33 @@ Devvit.addSchedulerJob({
     console.log("running change_letters_job");
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send('events', rms);
-    //TODO: Add settimeout of 5 seconds before setting new set of letters.
+
+    //Get old names and letters from redis.
+    const namesAndLettersJson = await context.redis.get('namesAndLetters');
+    if ( namesAndLettersJson && namesAndLettersJson.length > 0) {//Cancel previous job if it exists.
+      const namesAndLettersObj = JSON.parse(namesAndLettersJson);
+      const nl = namesAndLettersObj as namesAndLetters;
+      pushStatusMessageGlobal("Answer: Two names were: "+nl.names[0].toUpperCase() +" and "+nl.names[1].toUpperCase(), context );
+    }
+
     const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
     await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
     console.log("Stored names into redis");
     const rm: RealtimeMessage = { payload: namesAndLettersObj, type: PayloadType.NewNamesAndLetters};
     await context.realtime.send('events', rm);
+    pushStatusMessageGlobal("Which two character names can you make out of "+namesAndLettersObj.letters.toUpperCase()+" ?", context );
     await context.redis.expire('changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for changeLettersJobId.
     await context.redis.del('answeredNames');
   },
 });
 
-async function createChangeLettersThread(context:TriggerContext) {
+async function createChangeLettersThread(context:TriggerContext| ContextAPIClients) {
 
   const allJobs = await context.scheduler.listJobs();
 
   for(var i=0; i< allJobs.length; i++ ){
     await context.scheduler.cancelJob(allJobs[i].id);//delete all old schedules.
   }
-
-  /*
-  const changeLettersJobId = await context.redis.get('changeLettersJobId');
-  if ( changeLettersJobId && changeLettersJobId.length > 0) {//Cancel previous job if it exists.
-    await context.scheduler.cancelJob(changeLettersJobId);
-  } */
 
   try {
     const jobId = await context.scheduler.runJob({
@@ -136,16 +141,27 @@ Devvit.addTrigger({
 function getRandomNamesAndLetters(){
   var name1index = Math.floor(Math.random() * character_names.length/2);
   var name2index = Math.floor(Math.random() * character_names.length/2);
-
   //Pick first name from first half of the names array, Pick second name from second half of the names array.
-
   var allLetters = character_names[name1index] + character_names[ character_names.length/2 + name2index];
-
   var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
   console.log("Shuffled letters: "+ shuffledLetters);
-
   return {names: [ character_names[name1index], character_names[ character_names.length/2 + name2index] ], letters: shuffledLetters };
 }
+
+//Update messages in redis so that other clients which load messages first time get the messages.
+async function pushStatusMessageGlobal(message:string, context:JobContext|ContextAPIClients){
+  var messages: string[] = [];
+  var smJson = await context.redis.get('statusMessages');
+  if( smJson && smJson.length > 0 ) {
+    messages = JSON.parse(smJson);
+  }
+  messages.push(message);
+  if( messages.length > MaxMessagesCount) {
+    messages.shift();//Remove last message if we already have 10 messages.
+  }
+  await context.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
+}
+
 
 class UnscrambleGame {
   private _redisKeyPrefix: string;
@@ -224,19 +240,19 @@ class UnscrambleGame {
         if(msg.type == PayloadType.SubmittedName) { //TODO: Add points for user, and sync to Redis.
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedName;      
-          this.pushStatusMessage(pl.username+" made the name: "+ pl.name.toLocaleUpperCase()+". "+ praiseMessage);
+          this.pushStatusMessage(pl.username+" submitted the name: "+ pl.name.toLocaleUpperCase()+". "+ praiseMessage, false );
         }
         else if (msg.type == PayloadType.NewNamesAndLetters ){
           console.log("New names and letters received:");
           console.log(msg.payload);
           const nl = msg.payload as namesAndLetters;
           this.namesAndLetters = nl;        
-          this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?" );
+          this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", false );
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters};
           this.userGameStatus = UGS;
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
-          this.pushStatusMessage("Answer: Two names were: "+this.namesAndLetters.names[0].toUpperCase() +" and "+this.namesAndLetters.names[1].toUpperCase() );          
+          this.pushStatusMessage("Answer: Two names were: "+this.namesAndLetters.names[0].toUpperCase() +" and "+this.namesAndLetters.names[1].toUpperCase(), false );          
         }
       },
     });
@@ -244,14 +260,16 @@ class UnscrambleGame {
     this._channel.subscribe();
   }
 
-  public async pushStatusMessage(message:string){
+  public async pushStatusMessage(message:string, updateRedis:boolean = false){
     var messages = this.statusMessages;
     messages.push(message);
-    if( messages.length > 5) {
+    if( messages.length > MaxMessagesCount) {
       messages.shift();//Remove last message if we already have 10 messages.
     }
     this.statusMessages =  messages;
-    await this.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
+    if( updateRedis ) {
+      await this.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
+    }
   }
 
   public resetSelectedLetters() {
@@ -379,6 +397,9 @@ class UnscrambleGame {
         const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedName};
         await this._channel.send(rm);
         this.resetSelectedLetters();
+        const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];      
+        pushStatusMessageGlobal(pl.username+" submitted the name: "+ pl.name.toLocaleUpperCase()+". "+ praiseMessage, this._context);
+
         an.names.push(pl);
         if( an.names.length == this.namesAndLetters.names.length ) {//All names are already answered. Time to change the names and letters.
           const nl:namesAndLetters = getRandomNamesAndLetters();
@@ -386,8 +407,10 @@ class UnscrambleGame {
           console.log("Stored new names into redis");
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewNamesAndLetters};
           await this._channel.send(rm);
-          await this.redis.del('answeredNames');
-          //TODO: Resetup scheduler so that it only gets triggered only after x minutes of time after this change.
+          await this.redis.del('answeredNames');   
+          pushStatusMessageGlobal("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", this._context );
+
+          createChangeLettersThread(this._context);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
         else {//add to answered names list in redis.
           await this.redis.set('answeredNames',  JSON.stringify(an), {expiration: expireTime});
