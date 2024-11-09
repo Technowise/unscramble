@@ -15,11 +15,13 @@ enum PayloadType {
 type namesAndLetters = {
   letters: string;
   names: string[];
+  expireTimeMillis: number;
 };
 
 type UserGameState = {
   userSelectedLetters: string;
   userLetters: string;
+  remainingTimeInSeconds: number
 }
 
 type UserSubmittedName = {
@@ -67,9 +69,12 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "jesus", "buddha"];
 
 const MaxMessagesCount = 5;
+const showTitle = "South Park"; 
 
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
+const lettersExpireTimeSeconds = 180;//3 minutes in seconds.
+
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
 const expireTime = new Date(dateNow.getTime() + milliseconds);
@@ -148,7 +153,12 @@ function getRandomNamesAndLetters(){
   var allLetters = character_names[name1index] + character_names[ character_names.length/2 + name2index];
   var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
   console.log("Shuffled letters: "+ shuffledLetters);
-  return {names: [ character_names[name1index], character_names[ character_names.length/2 + name2index] ], letters: shuffledLetters };
+
+  let dateNow = new Date();
+  const milliseconds = lettersExpireTimeSeconds * 1000;
+  var lettersExpireTimeMillis = dateNow.getTime();
+  lettersExpireTimeMillis = lettersExpireTimeMillis + milliseconds;
+  return {names: [ character_names[name1index], character_names[ character_names.length/2 + name2index] ], letters: shuffledLetters, expireTimeMillis: lettersExpireTimeMillis };
 }
 
 //Update messages in redis so that other clients which load messages first time get the messages.
@@ -228,7 +238,11 @@ class UnscrambleGame {
 
     this._userGameStatus = context.useState<UserGameState>(
       async() =>{
-        const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters};
+        let dateNow = new Date();
+        const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
+
+        console.log("Letters expire millis:"+ this._namesAndLettersObj[0].expireTimeMillis + " Time now millis:"+ dateNow.getTime());
+        const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters, remainingTimeInSeconds: remainingTimeMillis/1000 };
         return UGS;
       }
     );
@@ -251,7 +265,11 @@ class UnscrambleGame {
           const nl = msg.payload as namesAndLetters;
           this.namesAndLetters = nl;        
           this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", false );
-          const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters};
+
+          let dateNow = new Date();
+          const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
+          //const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters, remainingTimeInSeconds: remainingTimeMillis/1000 };
+          const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000};
           this.userGameStatus = UGS;
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
@@ -439,7 +457,7 @@ Devvit.addMenuItem({
     const { reddit, ui } = context;
     const subreddit = await reddit.getCurrentSubreddit();
     const post = await reddit.submitPost({
-      title: 'Southpark Unscramble Game',
+      title: "Which "+showTitle+" character names can you make out of the given letters? [Unscramble Game]",
       subredditName: subreddit.name,
       // The preview appears while the post loads
       preview: (
@@ -517,7 +535,7 @@ Devvit.addCustomPostType({
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' cornerRadius="small">
           <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-            Which Southpark character names can you make out of these letters?
+            Time remaining to solve: {Math.floor(game.userGameStatus.remainingTimeInSeconds)} seconds.
           </text>
           <spacer size="xsmall" />
 
