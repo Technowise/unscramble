@@ -388,6 +388,22 @@ class UnscrambleGame {
     }
   }
 
+  public async isNamesAndLettersStale() {
+    const namesAndLettersJson = await this.redis.get('namesAndLetters');
+    if ( namesAndLettersJson && namesAndLettersJson.length > 0) {//Cancel previous job if it exists.
+      const namesAndLettersObj = JSON.parse(namesAndLettersJson);
+      const nl = namesAndLettersObj as namesAndLetters;
+      
+      if( nl.letters != this.namesAndLetters.letters ) {
+        return true;
+      }
+      else {
+        return false;
+      }
+    }
+    return false;
+  }
+
   public async verifyName(){
 
     const an = await this.getAnsweredNames();
@@ -411,10 +427,13 @@ class UnscrambleGame {
       }
 
       if( ! alreadyAnswered) {
+        const isStale = await this.isNamesAndLettersStale();
+
         this._context.ui.showToast({
-          text: "That's a correct name, congratulations!",
+          text: "That's a correct name, congratulations! is it stale? "+ isStale,
           appearance: 'success',
         });
+
         const pl:UserSubmittedName = { name:this.userGameStatus.userSelectedLetters, username: this.currentUsername};
         const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedName};
         await this._channel.send(rm);
