@@ -70,7 +70,8 @@ const character_names = ["eric", "kenny", "kyle", "stan",
 
 const MaxMessagesCount = 5;
 const showTitle = "South Park";
-const minutesToSolve = 3
+//const minutesToSolve = 3
+const minutesToSolve = 1
 
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
@@ -269,7 +270,6 @@ class UnscrambleGame {
 
           let dateNow = new Date();
           const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-          //const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters, remainingTimeInSeconds: remainingTimeMillis/1000 };
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000};
           this.userGameStatus = UGS;
         }
@@ -388,6 +388,35 @@ class UnscrambleGame {
     }
   }
 
+  public async refreshUserLetters() {
+    
+    const namesAndLettersJson = await this.redis.get('namesAndLetters');
+    if ( namesAndLettersJson && namesAndLettersJson.length > 0) {
+      const namesAndLettersObj = JSON.parse(namesAndLettersJson);
+      const nl = namesAndLettersObj as namesAndLetters;
+      this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", false );
+      let dateNow = new Date();
+      const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
+      const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000};
+      this.userGameStatus = UGS;
+      console.log("Refreshing the stale letters now.../\/\/\/\/\/");
+      console.log(nl);
+      console.log(this.userGameStatus);
+
+      this._context.ui.showToast({
+        text: "Refreshing the stale letters now.../\/\/\/\/\/",
+        appearance:"neutral",
+      });
+    }
+    else {
+      console.log("Something is wrong, not able to refresh letters.");
+      this._context.ui.showToast({
+        text: "Something is wrong, not able to refresh letters.",
+        appearance:"neutral",
+      });
+    }
+  } 
+
   public async isNamesAndLettersStale() {
     const namesAndLettersJson = await this.redis.get('namesAndLetters');
     if ( namesAndLettersJson && namesAndLettersJson.length > 0) {//Cancel previous job if it exists.
@@ -395,6 +424,8 @@ class UnscrambleGame {
       const nl = namesAndLettersObj as namesAndLetters;
       
       if( nl.letters != this.namesAndLetters.letters ) {
+        //Update the current names and letters object.
+        this.namesAndLetters = nl;
         return true;
       }
       else {
@@ -407,6 +438,7 @@ class UnscrambleGame {
   public async verifyName(){
 
     const an = await this.getAnsweredNames();
+    const isStale = await this.isNamesAndLettersStale();
 
     console.log("Answered names:");
     console.log(an);
@@ -426,14 +458,15 @@ class UnscrambleGame {
         }
       }
 
-      if( ! alreadyAnswered) {
-        const isStale = await this.isNamesAndLettersStale();
-
+      if( ! alreadyAnswered ) {//TODO: Add points for user.
         this._context.ui.showToast({
-          text: "That's a correct name, congratulations! is it stale? "+ isStale,
+          text: "That's a correct name, congratulations!",
           appearance: 'success',
         });
 
+      }
+
+      if( ! isStale ) {
         const pl:UserSubmittedName = { name:this.userGameStatus.userSelectedLetters, username: this.currentUsername};
         const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedName};
         await this._channel.send(rm);
@@ -457,6 +490,11 @@ class UnscrambleGame {
           await this.redis.set('answeredNames',  JSON.stringify(an), {expiration: expireTime});
         }
       }
+      else{
+        //Refresh the namesandletters object with the present one.
+        this.refreshUserLetters();
+      }
+
     }
     else {
       this._context.ui.showToast({
