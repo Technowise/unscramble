@@ -69,11 +69,12 @@ const character_names = ["eric", "kenny", "kyle", "stan",
                           "jesus", "buddha"];
 
 const MaxMessagesCount = 5;
-const showTitle = "South Park"; 
+const showTitle = "South Park";
+const minutesToSolve = 3
 
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
-const lettersExpireTimeSeconds = 180;//3 minutes in seconds.
+const lettersExpireTimeSeconds = minutesToSolve * 60;
 
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -119,7 +120,7 @@ async function createChangeLettersThread(context:TriggerContext| ContextAPIClien
   try {
     const jobId = await context.scheduler.runJob({
       //cron: '*/10 * * * *',
-      cron: '*/2 * * * *',
+      cron: "*/"+minutesToSolve+" * * * *",
       name: 'change_letters_job',
       data: {},
     });
@@ -535,7 +536,7 @@ Devvit.addCustomPostType({
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' cornerRadius="small">
           <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-            Time remaining to solve: {Math.floor(game.userGameStatus.remainingTimeInSeconds)} seconds.
+            Which two character names can you make out of these letters?
           </text>
           <spacer size="xsmall" />
 
