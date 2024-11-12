@@ -1,3 +1,5 @@
+TODO: Figure out why user status letters are not refreshing when the letters have become stale.
+
 Show seconds remaining to solve, update it every 5 seconds. 
 Add form to get input of character names and TV Show name while creating post. Optional input for background image.
 Add leaderboard with number of names solved by each user.

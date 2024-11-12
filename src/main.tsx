@@ -101,7 +101,6 @@ Devvit.addSchedulerJob({
 
     const namesAndLettersObj:namesAndLetters = getRandomNamesAndLetters();
     await context.redis.set('namesAndLetters',  JSON.stringify(namesAndLettersObj), {expiration: expireTime});
-    console.log("Stored names into redis");
     const rm: RealtimeMessage = { payload: namesAndLettersObj, type: PayloadType.NewNamesAndLetters};
     await context.realtime.send('events', rm);
     pushStatusMessageGlobal("Which two character names can you make out of "+namesAndLettersObj.letters.toUpperCase()+" ?", context );
@@ -154,8 +153,6 @@ function getRandomNamesAndLetters(){
   //Pick first name from first half of the names array, Pick second name from second half of the names array.
   var allLetters = character_names[name1index] + character_names[ character_names.length/2 + name2index];
   var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
-  console.log("Shuffled letters: "+ shuffledLetters);
-
   let dateNow = new Date();
   const milliseconds = lettersExpireTimeSeconds * 1000;
   var lettersExpireTimeMillis = dateNow.getTime();
@@ -232,7 +229,6 @@ class UnscrambleGame {
         else {
           const nl:namesAndLetters = getRandomNamesAndLetters();
           await context.redis.set('namesAndLetters',  JSON.stringify(nl), {expiration: expireTime});
-          console.log("Stored names into redis");
           return nl;
         }
       }
@@ -242,8 +238,6 @@ class UnscrambleGame {
       async() =>{
         let dateNow = new Date();
         const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-
-        console.log("Letters expire millis:"+ this._namesAndLettersObj[0].expireTimeMillis + " Time now millis:"+ dateNow.getTime());
         const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters, remainingTimeInSeconds: remainingTimeMillis/1000 };
         return UGS;
       }
@@ -253,8 +247,6 @@ class UnscrambleGame {
       name: 'events',
       onMessage: (msg) => {
         const payload = msg.payload;
-        console.log("Message payload received, here's the message:");
-        console.log(payload);
 
         if(msg.type == PayloadType.SubmittedName) { //TODO: Add points for user, and sync to Redis.
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
@@ -262,8 +254,6 @@ class UnscrambleGame {
           this.pushStatusMessage(pl.username+" submitted the name: "+ pl.name.toLocaleUpperCase()+". "+ praiseMessage, false );
         }
         else if (msg.type == PayloadType.NewNamesAndLetters ){
-          console.log("New names and letters received:");
-          console.log(msg.payload);
           const nl = msg.payload as namesAndLetters;
           this.namesAndLetters = nl;        
           this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", false );
@@ -389,31 +379,19 @@ class UnscrambleGame {
   }
 
   public async refreshUserLetters() {
-    
     const namesAndLettersJson = await this.redis.get('namesAndLetters');
     if ( namesAndLettersJson && namesAndLettersJson.length > 0) {
       const namesAndLettersObj = JSON.parse(namesAndLettersJson);
       const nl = namesAndLettersObj as namesAndLetters;
-      this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", false );
       let dateNow = new Date();
       const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-      const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000};
-      this.userGameStatus = UGS;
-      console.log("Refreshing the stale letters now.../\/\/\/\/\/");
-      console.log(nl);
-      console.log(this.userGameStatus);
-
-      this._context.ui.showToast({
-        text: "Refreshing the stale letters now.../\/\/\/\/\/",
-        appearance:"neutral",
-      });
-    }
-    else {
-      console.log("Something is wrong, not able to refresh letters.");
-      this._context.ui.showToast({
-        text: "Something is wrong, not able to refresh letters.",
-        appearance:"neutral",
-      });
+      this.namesAndLetters = nl;
+      var ugs = this.userGameStatus;//Reset selected letters for this user.
+      ugs.userLetters = nl.letters;
+      ugs.userSelectedLetters = "";
+      ugs.remainingTimeInSeconds = remainingTimeMillis/1000;
+      this.userGameStatus = ugs;
+      this.pushStatusMessage("Which two character names can you make out of "+nl.letters.toUpperCase()+" ?", false );
     }
   } 
 
@@ -440,9 +418,6 @@ class UnscrambleGame {
     const an = await this.getAnsweredNames();
     const isStale = await this.isNamesAndLettersStale();
 
-    console.log("Answered names:");
-    console.log(an);
-
     if( character_names.includes(this.userGameStatus.userSelectedLetters) ) {
 
       //Check if the submitted name was already answered by someone.
@@ -460,7 +435,7 @@ class UnscrambleGame {
 
       if( ! alreadyAnswered ) {//TODO: Add points for user.
         this._context.ui.showToast({
-          text: "That's a correct name, congratulations!",
+          text: "That's a correct name, congratulations! XOXO",
           appearance: 'success',
         });
 
@@ -478,7 +453,6 @@ class UnscrambleGame {
         if( an.names.length == this.namesAndLetters.names.length ) {//All names are already answered. Time to change the names and letters.
           const nl:namesAndLetters = getRandomNamesAndLetters();
           await this.redis.set('namesAndLetters',  JSON.stringify(nl), {expiration: expireTime});
-          console.log("Stored new names into redis");
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewNamesAndLetters};
           await this._channel.send(rm);
           await this.redis.del('answeredNames');   
@@ -490,9 +464,8 @@ class UnscrambleGame {
           await this.redis.set('answeredNames',  JSON.stringify(an), {expiration: expireTime});
         }
       }
-      else{
-        //Refresh the namesandletters object with the present one.
-        this.refreshUserLetters();
+      else{ //Refresh the namesandletters object with the present one.
+        await this.refreshUserLetters();
       }
 
     }
@@ -517,7 +490,6 @@ Devvit.addMenuItem({
     const post = await reddit.submitPost({
       title: "Which "+showTitle+" character names can you make out of the given letters? [Unscramble Game]",
       subredditName: subreddit.name,
-      // The preview appears while the post loads
       preview: (
         <vstack width={'100%'} height={'100%'} alignment="center middle">
         <image
