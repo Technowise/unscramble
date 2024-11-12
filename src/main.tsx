@@ -47,12 +47,6 @@ type leaderBoard = {
   totalNamesSolved: number;
 };
 
-type displayBlocks = {
-  help: boolean,
-  game: boolean,
-  leaderBoard: boolean,
-};
-
 export enum Pages {
   Game,
   Help,
@@ -193,7 +187,6 @@ class UnscrambleGame {
   private _statusMessages: UseStateResult<string[]>;
   private _channel: UseChannelResult<RealtimeMessage>;
   private _leaderBoardRec:UseStateResult<leaderBoard[]>;
-  private _UIdisplayBlocks: UseStateResult<displayBlocks>;
   private _currPage: UseStateResult<Pages>;
 
   constructor( context: ContextAPIClients, postId: string) {
@@ -274,16 +267,6 @@ class UnscrambleGame {
       } 
       return [];
     });
-
-    this._UIdisplayBlocks = context.useState<displayBlocks>(() =>{
-      const dBlocks:displayBlocks = {
-        game: true,
-        help: false, 
-        leaderBoard: false
-      };
-      return dBlocks;
-    });
-
 
     this._channel = useChannel<RealtimeMessage>({
       name: 'events',
