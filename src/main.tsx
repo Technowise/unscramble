@@ -494,8 +494,16 @@ class UnscrambleGame {
         ugs.totalNamesSolved = ugs.totalNamesSolved + 1;
         const leaderBoardArray = this.leaderBoardRec;
         const leaderBoardObj:leaderBoard  = { username:this.currentUsername, totalNamesSolved: this.userGameStatus.totalNamesSolved};
-        leaderBoardArray.push(leaderBoardObj);
-        leaderBoardArray.sort((a, b) => a.totalNamesSolved - b.totalNamesSolved);
+        var foundIndex = leaderBoardArray.findIndex(x => x.username == this.currentUsername);
+
+        if( foundIndex >= 0 ) {//Update in place
+          leaderBoardArray[foundIndex] = leaderBoardObj;
+        }
+        else {
+          leaderBoardArray.push(leaderBoardObj);
+        }
+
+        leaderBoardArray.sort((a, b) =>  b.totalNamesSolved - a.totalNamesSolved);
         this.leaderBoardRec = leaderBoardArray;
         await this.redis.hSet(this.myPostId, { [this.currentUsername]: JSON.stringify(leaderBoardObj) });
         await this.redis.expire(this.myPostId, redisExpireTimeSeconds);
@@ -628,7 +636,7 @@ Devvit.addCustomPostType({
     console.log(game.names);
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack>
+      <vstack alignment="center middle">
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
           Which two character names can you make out of these letters?
         </text>
@@ -666,7 +674,7 @@ Devvit.addCustomPostType({
     );
     
     const LeaderBoardBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack width="344px" height="90%" backgroundColor="transparent" alignment="center middle">
+      <vstack width="344px" height="94%" backgroundColor="transparent" alignment="center middle">
         <vstack  width="96%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
           <hstack padding="small">
             <text style="heading" size="large" weight='bold' alignment="middle center" width="275px" color='black'>
