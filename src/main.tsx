@@ -22,6 +22,7 @@ type UserGameState = {
   userSelectedLetters: string;
   userLetters: string;
   remainingTimeInSeconds: number
+  totalNamesSolved: number;
 }
 
 type UserSubmittedName = {
@@ -45,6 +46,18 @@ type leaderBoard = {
   username: string;
   totalNamesSolved: number;
 };
+
+type displayBlocks = {
+  help: boolean,
+  game: boolean,
+  leaderBoard: boolean,
+};
+
+export enum Pages {
+  Game,
+  Help,
+  LeaderBoard
+}
 
 function splitArray<T>(array: T[], segmentLength: number): T[][] {
   const result: T[][] = [];
@@ -179,6 +192,9 @@ class UnscrambleGame {
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
   private _channel: UseChannelResult<RealtimeMessage>;
+  private _leaderBoardRec:UseStateResult<leaderBoard[]>;
+  private _UIdisplayBlocks: UseStateResult<displayBlocks>;
+  private _currPage: UseStateResult<Pages>;
 
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
@@ -203,6 +219,11 @@ class UnscrambleGame {
       return currentUser?.username??'defaultUsername';
     });
 
+
+    this._currPage = context.useState(async () => {
+      return Pages.Game;
+    });
+
     this._redisKeyPrefix = this.myPostId + this.currentUsername;
 
     this._namesAndLettersObj = context.useState<namesAndLetters>(
@@ -225,10 +246,44 @@ class UnscrambleGame {
       async() =>{
         let dateNow = new Date();
         const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-        const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters, remainingTimeInSeconds: remainingTimeMillis/1000 };
+        const UGS:UserGameState = {userSelectedLetters:'', userLetters: this._namesAndLettersObj[0].letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalNamesSolved:0 };
         return UGS;
       }
     );
+
+    this._leaderBoardRec = context.useState(async () => {//Get Leaderboard records.
+      const previousLeaderBoard = await context.redis.hGetAll(this.myPostId);
+      if (previousLeaderBoard && Object.keys(previousLeaderBoard).length > 0) {
+        var leaderBoardRecords: leaderBoard[] = [];
+        for (const key in previousLeaderBoard) {
+          const redisLBObj = JSON.parse(previousLeaderBoard[key]);
+          if( redisLBObj.username ) {
+            if(redisLBObj.username == this.currentUsername) {
+              const usg = this._userGameStatus[0];
+              usg.totalNamesSolved = redisLBObj.totalNamesSolved;
+              this.userGameStatus = usg;
+            }
+            const lbObj:leaderBoard = {username: redisLBObj.username, totalNamesSolved:redisLBObj.totalNamesSolved };
+            leaderBoardRecords.push(lbObj);
+          }
+        }
+        leaderBoardRecords.sort((a, b) => a.totalNamesSolved - b.totalNamesSolved);
+        console.log("Current leaderboard records:");
+        console.log(leaderBoardRecords);
+        return leaderBoardRecords;
+      } 
+      return [];
+    });
+
+    this._UIdisplayBlocks = context.useState<displayBlocks>(() =>{
+      const dBlocks:displayBlocks = {
+        game: true,
+        help: false, 
+        leaderBoard: false
+      };
+      return dBlocks;
+    });
+
 
     this._channel = useChannel<RealtimeMessage>({
       name: 'events',
@@ -247,7 +302,7 @@ class UnscrambleGame {
 
           let dateNow = new Date();
           const remainingTimeMillis = this._namesAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-          const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000};
+          const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalNamesSolved: this.userGameStatus.totalNamesSolved };
           this.userGameStatus = UGS;
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
@@ -343,6 +398,24 @@ class UnscrambleGame {
     this._userGameStatus[1](value);
   }
 
+  public set leaderBoardRec(value: leaderBoard[]) {
+    this._leaderBoardRec[0] = value;
+    this._leaderBoardRec[1](value);
+  }
+
+  public get leaderBoardRec() {
+    return this._leaderBoardRec[0];
+  }
+
+  public get currPage() {
+    return this._currPage[0];
+  }
+
+  public set currPage(value: Pages) {
+    this._currPage[0] = value;
+    this._currPage[1](value);
+  }
+
   private isScreenWide() {
     const width = this._context.dimensions?.width ?? null;
     return width == null ||  width < 688 ? false : true;
@@ -422,10 +495,20 @@ class UnscrambleGame {
 
       if( ! alreadyAnswered ) {//TODO: Add points for user.
         this._context.ui.showToast({
-          text: "That's a correct name, congratulations! XOXO",
+          text: "That's a correct name, congratulations!",
           appearance: 'success',
         });
 
+        const ugs = this.userGameStatus;    
+        ugs.totalNamesSolved = ugs.totalNamesSolved + 1;
+        const leaderBoardArray = this.leaderBoardRec;
+        const leaderBoardObj:leaderBoard  = { username:this.currentUsername, totalNamesSolved: this.userGameStatus.totalNamesSolved};
+        leaderBoardArray.push(leaderBoardObj);
+        leaderBoardArray.sort((a, b) => a.totalNamesSolved - b.totalNamesSolved);
+        this.leaderBoardRec = leaderBoardArray;
+        await this.redis.hSet(this.myPostId, { [this.currentUsername]: JSON.stringify(leaderBoardObj) });
+        await this.redis.expire(this.myPostId, redisExpireTimeSeconds);
+        this.userGameStatus = ugs;
       }
 
       if( ! isStale ) {
@@ -507,6 +590,7 @@ Devvit.addCustomPostType({
 
     const myPostId = _context.postId ?? 'defaultPostId';
     const game = new UnscrambleGame(_context, myPostId);
+    let cp: JSX.Element[];
 
     const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (<>
         <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor={letterBorderColour} cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
@@ -547,43 +631,58 @@ Devvit.addCustomPostType({
     console.log("here are the random names:");
     console.log(game.names);
 
+    const GameBlock = ({ game }: { game: UnscrambleGame }) => (
+      <vstack>
+
+      <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
+        Which two character names can you make out of these letters?
+      </text>
+      <spacer size="xsmall" />
+
+      <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
+        Click on the letters to select.
+      </text>
+      <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
+        {splitArray(letterCells, 10).map((row) => ( <>
+          <hstack>{row}</hstack>
+          <spacer size="xsmall" />
+        </>
+        ))}
+      </vstack>
+      <spacer size="xsmall" />
+      <SelectedLettersBlock game={game} />
+
+      <spacer size="small" />  
+      <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
+        Game Activity Feed:
+      </text>
+      <vstack borderColor={borderColour} padding='xsmall' height="165px" width="330px" backgroundColor='white'>
+        <vstack>
+        {
+            game.statusMessages.map((message) => (
+              <>
+                <text wrap color="black" size="small">{message}</text> 
+                <spacer size="small"/>
+              </>
+          ))}
+        </vstack>
+      </vstack>
+
+    </vstack>
+
+    );
+
+
+    cp = [  <GameBlock game={game} />,
+      //<HelpBlock game={game} />,
+      //<LeaderBoardBlock game={game} />
+     ];
+
     return (
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' cornerRadius="small">
-          <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-            Which two character names can you make out of these letters?
-          </text>
-          <spacer size="xsmall" />
-
-          <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
-            Click on the letters to select.
-          </text>
-          <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
-            {splitArray(letterCells, 10).map((row) => ( <>
-              <hstack>{row}</hstack>
-              <spacer size="xsmall" />
-            </>
-            ))}
-          </vstack>
-          <spacer size="xsmall" />
-          <SelectedLettersBlock game={game} />
-
-          <spacer size="small" />  
-          <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
-            Game Activity Feed:
-          </text>
-          <vstack borderColor={borderColour} padding='xsmall' height="165px" width="330px" backgroundColor='white'>
-            <vstack>
-            {
-                game.statusMessages.map((message) => (
-                  <>
-                    <text wrap color="black" size="small">{message}</text> 
-                    <spacer size="small"/>
-                  </>
-              ))}
-            </vstack>
-          </vstack>
+          {cp[game.currPage]}
           <spacer size="xsmall" />
           <hstack alignment="center middle" width="100%">
             <button size="small" icon='list-numbered'>Leaderboard</button> 

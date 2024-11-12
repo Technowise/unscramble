@@ -1,8 +1,12 @@
-TODO: Figure out why user status letters are not refreshing when the letters have become stale.
-
-Show seconds remaining to solve, update it every 5 seconds. 
-Add form to get input of character names and TV Show name while creating post. Optional input for background image.
 Add leaderboard with number of names solved by each user.
+Add form to get input of character names and TV Show name while creating post. Optional input for background image.
+Add Help section.
+Add Readme file.
+
+
+TODO: Figure out why user status letters are not refreshing when the letters have become stale. - Done
+
+Show seconds remaining to solve, update it every 5 seconds. - Postponed for later implementation.
 Add created timestamp to the namesandletters object, show countdown timer for time left to solve the present letters.
 
 Make the UI and letters similar to Literati game(yahoo).
