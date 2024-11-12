@@ -317,6 +317,14 @@ class UnscrambleGame {
     this.currPage = Pages.LeaderBoard;
   }
 
+  public showHelpBlock() {
+    this.currPage = Pages.Help;
+  }
+
+  public hideHelpBlock() {
+    this.currPage = Pages.Game;
+  }
+
   public resetSelectedLetters() {
     var ugs = this.userGameStatus;//Reset selected letters for this user.
     ugs.userLetters = this.userGameStatus.userLetters + this.userGameStatus.userSelectedLetters;
@@ -676,11 +684,10 @@ Devvit.addCustomPostType({
     const LeaderBoardBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack width="344px" height="94%" backgroundColor="transparent" alignment="center middle">
         <vstack  width="96%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
-          <hstack padding="small">
-            <text style="heading" size="large" weight='bold' alignment="middle center" width="275px" color='black'>
-                &nbsp;&nbsp;&nbsp;&nbsp;Leaderboard
+          <hstack padding="small" alignment="middle center" width="100%">
+            <text style="heading" size="large" weight='bold' alignment="middle center" color='black'>
+                Leaderboard
             </text>
-            <button size="small" icon='close' width="34px" onPress={() => game.hideLeaderboardBlock()}></button>
           </hstack>
           <hstack padding="small" width="100%" backgroundColor="#c0c0c0" height="8%">
             <text style="heading" size="small" color="black" width="15%">
@@ -729,10 +736,47 @@ Devvit.addCustomPostType({
       );
     };
 
+    const HelpBlock = ({ game }: { game: UnscrambleGame }) => (
+      <vstack  width="344px" height="94%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
+        <hstack padding="small" width="100%">
+          <text style="heading" size="large" weight='bold' alignment="middle center" width="100%" color='black'>
+              Help 
+          </text>
+        </hstack>
+        <vstack height="82%" width="100%" padding="medium">
+          <spacer size="small" />
+          <hstack alignment='start middle'>
+            <icon name="search" size="xsmall" color='black'></icon>
+            <text style="heading" size="medium" color='black'>
+              &nbsp; How to play Unscramble Game
+            </text>
+          </hstack>
+          <text style="body" wrap size="medium" color='black'>
+            This is a game of unscrambling {showTitle} character names. Each set of letters contains a minimum of two names scrambled together. Tap/click on the letters to select, and click on submit after the name is completed.
+            New set of scrambled letters are presented after both the names are solved, or after {minutesToSolve} minute(s).
+          </text>
+          <spacer size="small" />
+          <hstack alignment='start middle'>
+            <icon name="list-numbered" size="xsmall" color='black'></icon>
+            <text style="heading" size="medium" color='black'>
+              &nbsp; View leaderboard.
+            </text>
+          </hstack>
+          <text style="body" wrap size="medium" color='black'>
+            You can view how many names each participant has solved by clicking on `Leaderboard` button.
+          </text> 
+          <spacer size="small" />
+        </vstack>
+        <hstack alignment="bottom center" width="100%" height="8%">
+          <button size="small" icon='close' onPress={() => game.hideHelpBlock()}>Close</button>
+        </hstack>
+      </vstack>
+    );
 
-    cp = [  <GameBlock game={game} />,
-      <LeaderBoardBlock game={game} />
-      //<HelpBlock game={game} />,
+
+    cp = [ <GameBlock game={game} />,
+      <LeaderBoardBlock game={game} />,
+      <HelpBlock game={game} />,
      ];
 
     return (
@@ -744,7 +788,7 @@ Devvit.addCustomPostType({
           <hstack alignment="center middle" width="100%">
             <button size="small" icon='list-numbered' onPress={() => game.showLeaderboardBlock()}>Leaderboard</button> 
             <spacer size="small" />
-            <button size="small" icon='help'>Help</button>
+            <button size="small" icon='help'  onPress={() => game.showHelpBlock()}>Help</button>
           </hstack>
         </vstack>
       </vstack>

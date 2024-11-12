@@ -1,4 +1,4 @@
-Add leaderboard with number of names solved by each user.
+Add leaderboard with number of names solved by each user. - Done.
 Add form to get input of character names and TV Show name while creating post. Optional input for background image.
 Add Help section.
 Add Readme file.
