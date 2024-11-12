@@ -1,5 +1,5 @@
 import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext, JobContext} from '@devvit/public-api';
-
+import { usePagination } from '@devvit/kit';
 Devvit.configure({
   redditAPI: true,
   realtime: true,
@@ -49,8 +49,8 @@ type leaderBoard = {
 
 export enum Pages {
   Game,
-  Help,
-  LeaderBoard
+  LeaderBoard,
+  Help
 }
 
 function splitArray<T>(array: T[], segmentLength: number): T[][] {
@@ -73,8 +73,8 @@ const character_names = ["eric", "kenny", "kyle", "stan",
 
 const MaxMessagesCount = 5;
 const showTitle = "South Park";
-//const minutesToSolve = 3
 const minutesToSolve = 1
+const leaderBoardPageSize = 10;
 
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
@@ -260,7 +260,7 @@ class UnscrambleGame {
             leaderBoardRecords.push(lbObj);
           }
         }
-        leaderBoardRecords.sort((a, b) => a.totalNamesSolved - b.totalNamesSolved);
+        leaderBoardRecords.sort((a, b) =>  b.totalNamesSolved - a.totalNamesSolved);
         console.log("Current leaderboard records:");
         console.log(leaderBoardRecords);
         return leaderBoardRecords;
@@ -307,6 +307,14 @@ class UnscrambleGame {
     if( updateRedis ) {
       await this.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
     }
+  }
+
+  public hideLeaderboardBlock() {
+    this.currPage = Pages.Game;
+  }
+
+  public showLeaderboardBlock() {
+    this.currPage = Pages.LeaderBoard;
   }
 
   public resetSelectedLetters() {
@@ -573,7 +581,12 @@ Devvit.addCustomPostType({
 
     const myPostId = _context.postId ?? 'defaultPostId';
     const game = new UnscrambleGame(_context, myPostId);
+    const {currentPage, currentItems, toNextPage, toPrevPage} = usePagination(_context, game.leaderBoardRec, leaderBoardPageSize);
     let cp: JSX.Element[];
+
+    const openUserPage = async (username: string) => {
+      _context.ui.navigateTo(`https://www.reddit.com/user/${username}/`);
+    };
 
     const letterCells = game.userGameStatus.userLetters.split("").map((letter, index) => (<>
         <vstack backgroundColor="#f5b642" width="26px" height="26px" alignment="center middle" borderColor={letterBorderColour} cornerRadius="small" onPress={() => game.addCharacterToSelected(index)}>
@@ -616,49 +629,102 @@ Devvit.addCustomPostType({
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack>
+        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
+          Which two character names can you make out of these letters?
+        </text>
+        <spacer size="xsmall" />
 
-      <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-        Which two character names can you make out of these letters?
-      </text>
-      <spacer size="xsmall" />
-
-      <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
-        Click on the letters to select.
-      </text>
-      <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
-        {splitArray(letterCells, 10).map((row) => ( <>
-          <hstack>{row}</hstack>
-          <spacer size="xsmall" />
-        </>
-        ))}
-      </vstack>
-      <spacer size="xsmall" />
-      <SelectedLettersBlock game={game} />
-
-      <spacer size="small" />  
-      <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
-        Game Activity Feed:
-      </text>
-      <vstack borderColor={borderColour} padding='xsmall' height="165px" width="330px" backgroundColor='white'>
-        <vstack>
-        {
-            game.statusMessages.map((message) => (
-              <>
-                <text wrap color="black" size="small">{message}</text> 
-                <spacer size="small"/>
-              </>
+        <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
+          Click on the letters to select.
+        </text>
+        <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
+          {splitArray(letterCells, 10).map((row) => ( <>
+            <hstack>{row}</hstack>
+            <spacer size="xsmall" />
+          </>
           ))}
         </vstack>
+        <spacer size="xsmall" />
+        <SelectedLettersBlock game={game} />
+
+        <spacer size="small" />  
+        <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
+          Game Activity Feed:
+        </text>
+        <vstack borderColor={borderColour} padding='xsmall' height="165px" width="330px" backgroundColor='white'>
+          <vstack>
+          {
+              game.statusMessages.map((message) => (
+                <>
+                  <text wrap color="black" size="small">{message}</text> 
+                  <spacer size="small"/>
+                </>
+            ))}
+          </vstack>
+        </vstack>
       </vstack>
-
-    </vstack>
-
     );
+    
+    const LeaderBoardBlock = ({ game }: { game: UnscrambleGame }) => (
+      <vstack width="344px" height="90%" backgroundColor="transparent" alignment="center middle">
+        <vstack  width="96%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
+          <hstack padding="small">
+            <text style="heading" size="large" weight='bold' alignment="middle center" width="275px" color='black'>
+                &nbsp;&nbsp;&nbsp;&nbsp;Leaderboard
+            </text>
+            <button size="small" icon='close' width="34px" onPress={() => game.hideLeaderboardBlock()}></button>
+          </hstack>
+          <hstack padding="small" width="100%" backgroundColor="#c0c0c0" height="8%">
+            <text style="heading" size="small" color="black" width="15%">
+             Rank
+            </text>
+            <text style="heading" size="small" color="black" width="50%">
+             Username
+            </text>
+            <text style="heading" size="small" color="black" width="30%" alignment="start">
+              Total Names
+            </text>
+          </hstack>
+          <vstack width="100%" padding="small" height="70%">
+            {
+            currentItems.map((row, index) => (
+            <LeaderBoardRow row={row} index={index + 1 + (currentPage * leaderBoardPageSize )} game={game} />
+            ))}
+            {game.leaderBoardRec.length == 0 ?<text style="body" size="small" color="black" width="100%" alignment="middle" wrap>
+              The leaderboard is empty. You could be the first, close this and start the game!
+            </text>:""}
+          </vstack>
+          <hstack alignment="middle center" width="100%" height="10%">
+            <button size="small" onPress={toPrevPage} icon="left"/>
+            <spacer size="xsmall" /><text alignment="middle" color="black"> Page: {currentPage + 1}</text><spacer size="xsmall" />
+            <button size="small" onPress={toNextPage} icon="right"/>
+            <spacer size="small" />
+            <button size="small" icon='close' onPress={() => game.hideLeaderboardBlock()}>Close</button>
+          </hstack>
+          <spacer size="small" />
+        </vstack>
+      </vstack>
+    );
+
+    const LeaderBoardRow = ({row, index, game}: {row: leaderBoard, index: number,  game: UnscrambleGame }): JSX.Element => {
+      return (<hstack padding="xsmall">
+          <text style="body" size="small" weight="bold" color="black" width="15%">
+            {index}
+          </text>
+          <text style="body" size="small" weight="bold" color="black" onPress={() => openUserPage(row.username)} width="50%">
+            {row.username}
+          </text>
+          <text style="body" size="small" color="black" width="30%" alignment="start">
+            &nbsp;{row.totalNamesSolved}
+          </text>
+        </hstack>
+      );
+    };
 
 
     cp = [  <GameBlock game={game} />,
+      <LeaderBoardBlock game={game} />
       //<HelpBlock game={game} />,
-      //<LeaderBoardBlock game={game} />
      ];
 
     return (
@@ -668,7 +734,7 @@ Devvit.addCustomPostType({
           {cp[game.currPage]}
           <spacer size="xsmall" />
           <hstack alignment="center middle" width="100%">
-            <button size="small" icon='list-numbered'>Leaderboard</button> 
+            <button size="small" icon='list-numbered' onPress={() => game.showLeaderboardBlock()}>Leaderboard</button> 
             <spacer size="small" />
             <button size="small" icon='help'>Help</button>
           </hstack>
