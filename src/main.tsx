@@ -41,14 +41,10 @@ type RealtimeMessage = {
   type: PayloadType;
 };
 
-function sessionId(): string {
-  let id = '';
-  const asciiZero = '0'.charCodeAt(0);
-  for (let i = 0; i < 4; i++) {
-    id += String.fromCharCode(Math.floor(Math.random() * 26) + asciiZero);
-  }
-  return id;
-}
+type leaderBoard = {
+  username: string;
+  totalNamesSolved: number;
+};
 
 function splitArray<T>(array: T[], segmentLength: number): T[][] {
   const result: T[][] = [];
@@ -110,16 +106,13 @@ Devvit.addSchedulerJob({
 });
 
 async function createChangeLettersThread(context:TriggerContext| ContextAPIClients) {
-
   const allJobs = await context.scheduler.listJobs();
-
   for(var i=0; i< allJobs.length; i++ ){
     await context.scheduler.cancelJob(allJobs[i].id);//delete all old schedules.
   }
 
   try {
     const jobId = await context.scheduler.runJob({
-      //cron: '*/10 * * * *',
       cron: "*/"+minutesToSolve+" * * * *",
       name: 'change_letters_job',
       data: {},
@@ -174,7 +167,6 @@ async function pushStatusMessageGlobal(message:string, context:JobContext|Contex
   await context.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
 }
 
-
 class UnscrambleGame {
   private _redisKeyPrefix: string;
   private redis: RedisClient;
@@ -187,7 +179,6 @@ class UnscrambleGame {
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
   private _channel: UseChannelResult<RealtimeMessage>;
-  private _session: UseStateResult<string>;
 
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
@@ -205,10 +196,6 @@ class UnscrambleGame {
   
     this._myPostId = context.useState(async () => {
       return postId;
-    });
-
-    this._session = context.useState(async () => {
-      return sessionId();
     });
 
     this._currentUsername = context.useState(async () => {
