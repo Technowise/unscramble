@@ -148,16 +148,20 @@ Devvit.addTrigger({
 });
 
 function getRandomWordsAndLetters(){
-  var name1index = Math.floor(Math.random() * words.length/2);
-  var name2index = Math.floor(Math.random() * words.length/2);
-  //Pick first name from first half of the names array, Pick second name from second half of the names array.
-  var allLetters = words[name1index] + words[ words.length/2 + name2index];
+  var word1index = Math.floor(Math.random() * words.length);
+  var word2index = Math.floor(Math.random() * words.length);
+
+  while( word2index == word1index) {//Make sure we do not end up with same words.
+    word2index = Math.floor(Math.random() * words.length);
+  }
+
+  var allLetters = words[word1index] + words[ word2index];
   var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
   let dateNow = new Date();
   const milliseconds = lettersExpireTimeSeconds * 1000;
   var lettersExpireTimeMillis = dateNow.getTime();
   lettersExpireTimeMillis = lettersExpireTimeMillis + milliseconds;
-  const wl:wordsAndLetters = {words: [ words[name1index], words[ words.length/2 + name2index] ], letters: shuffledLetters, expireTimeMillis: lettersExpireTimeMillis };
+  const wl:wordsAndLetters = {words: [ words[word1index], words[word2index] ], letters: shuffledLetters, expireTimeMillis: lettersExpireTimeMillis };
   return wl;
 }
 
@@ -647,13 +651,10 @@ Devvit.addCustomPostType({
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center middle">
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-          Which two {wordsTitle} can you make out of these letters?
+          Tap/click letters below to make {wordsTitle}
         </text>
         <spacer size="xsmall" />
 
-        <text style="heading" size="small" weight='bold' alignment="center middle" color={textColour} width="312px" wrap>
-          Click on the letters to select.
-        </text>
         <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
           {splitArray(letterCells, 10).map((row) => ( <>
             <hstack>{row}</hstack>
@@ -668,7 +669,7 @@ Devvit.addCustomPostType({
         <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
           Game Activity Feed:
         </text>
-        <vstack borderColor={borderColour} padding='xsmall' height="165px" width="330px" backgroundColor='white'>
+        <vstack borderColor={borderColour} padding='xsmall' height="182px" width="330px" backgroundColor='white'>
           <vstack>
           {
               game.statusMessages.map((message) => (
