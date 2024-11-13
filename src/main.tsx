@@ -74,13 +74,9 @@ const words = ["eric", "kenny", "kyle", "stan",
 */
 
 const MaxMessagesCount = 5;
-//const wordsTitle = "South Park character names";
-const minutesToSolve = 1
 const leaderBoardPageSize = 10;
-
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
-const lettersExpireTimeSeconds = minutesToSolve * 60;
 
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -116,6 +112,7 @@ Devvit.addSchedulerJob({
 });
 
 async function createChangeLettersThread(context:TriggerContext| ContextAPIClients) {
+  const minutesToSolve = await getMinutesToSolveFromRedis(context);
   const allJobs = await context.scheduler.listJobs();
   for(var i=0; i< allJobs.length; i++ ){
     await context.scheduler.cancelJob(allJobs[i].id);//delete all old schedules.
@@ -164,6 +161,17 @@ async function getWordsFromRedis(context:TriggerContext| ContextAPIClients) {
   }
 }
 
+async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClients) {
+  const minutesStr = await context.redis.get('minutesToSolve');
+  if( minutesStr && minutesStr.length > 0 ) {
+   return parseInt(minutesStr);
+  }
+  else
+  {
+    return 2;//Default to two minutes.
+  }
+}
+
 async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients) {
   const wordsStr = await context.redis.get('wordsTitle');
   if( wordsStr && wordsStr.length > 0 ) {
@@ -177,6 +185,8 @@ async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients)
 
 async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients) {
   const words = await getWordsFromRedis(context);
+  const minutesToSolve = await getMinutesToSolveFromRedis(context);
+  const lettersExpireTimeSeconds = minutesToSolve * 60;
   var word1index = Math.floor(Math.random() * words.length);
   var word2index = Math.floor(Math.random() * words.length);
 
@@ -224,6 +234,7 @@ class UnscrambleGame {
   private _currPage: UseStateResult<Pages>;
   private _allWords: UseStateResult<string[]>;
   private _wordsTitle: UseStateResult<string>;
+  private _minutesToSolve: UseStateResult<number>;
   
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
@@ -236,7 +247,7 @@ class UnscrambleGame {
       if( smJson && smJson.length > 0 ) {
         messages = JSON.parse(smJson);
       }
-      return messages;//TODO: set this up to get list of current status messages from redis.
+      return messages;
     });
 
     this._allWords = context.useState(async () => {
@@ -251,7 +262,12 @@ class UnscrambleGame {
       }
       return "";
     });
-  
+
+    this._minutesToSolve = context.useState(async () => {
+      const minutes = await getMinutesToSolveFromRedis(context);
+      return minutes;
+    });
+    
     this._myPostId = context.useState(async () => {
       return postId;
     });
@@ -322,7 +338,7 @@ class UnscrambleGame {
       onMessage: (msg) => {
         const payload = msg.payload;
 
-        if(msg.type == PayloadType.SubmittedWord) { //TODO: Add points for user, and sync to Redis.
+        if(msg.type == PayloadType.SubmittedWord) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
           this.pushStatusMessage(pl.username+" submitted the name: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
@@ -417,6 +433,10 @@ class UnscrambleGame {
 
   public get wordsTitle() {
     return this._wordsTitle[0];
+  }
+
+  public get minutesToSolve(){
+    return this._minutesToSolve[0];
   }
 
   public get statusMessages() {
@@ -533,25 +553,23 @@ class UnscrambleGame {
 
     const an = await this.getAnsweredWords();
     const isStale = await this.iswordsAndLettersStale();
+    var alreadyAnswered = false;
 
     if( this.allWords.includes(this.userGameStatus.userSelectedLetters) ) {
 
       //Check if the submitted name was already answered by someone.
-      var alreadyAnswered = false;
-      for(var i=0; i< an.words.length; i++) {//TODO: Use find method for this lookup later.
-
-        if( an.words[i].word ==  this.userGameStatus.userSelectedLetters) {
-          alreadyAnswered = true;
-          this._context.ui.showToast({
-            text: "This name was already answered by /u/"+an.words[i].username,
-            appearance:"neutral",
-          });
-        }
+      var foundIndex = an.words.findIndex(x => x.word == this.userGameStatus.userSelectedLetters);
+      if( foundIndex >= 0 ) {
+        alreadyAnswered = true;
+        this._context.ui.showToast({
+          text: "This name was already answered by /u/"+an.words[foundIndex].username,
+          appearance:"neutral",
+        });       
       }
 
-      if( ! alreadyAnswered ) {//TODO: Add points for user.
+      if( ! alreadyAnswered ) {
         this._context.ui.showToast({
-          text: "That's a correct name, congratulations!",
+          text: "That's correct, congratulations!",
           appearance: 'success',
         });
 
@@ -575,7 +593,7 @@ class UnscrambleGame {
         this.userGameStatus = ugs;
       }
 
-      if( ! isStale ) {
+      if( ! isStale && !alreadyAnswered  ) {
         const pl:UserSubmittedWord = { word:this.userGameStatus.userSelectedLetters, username: this.currentUsername};
         const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedWord};
         await this._channel.send(rm);
@@ -591,17 +609,15 @@ class UnscrambleGame {
           await this._channel.send(rm);
           await this.redis.del('answeredWords');   
           pushStatusMessageGlobal("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", this._context );
-
           createChangeLettersThread(this._context);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
         else {//add to answered names list in redis.
           await this.redis.set('answeredWords',  JSON.stringify(an), {expiration: expireTime});
         }
       }
-      else{ //Refresh the wordsAndLetters object with the present one.
+      else if( isStale && !alreadyAnswered){ //Refresh the wordsAndLetters object with the present one.
         await this.refreshUserLetters();
       }
-
     }
     else {
       this._context.ui.showToast({
@@ -664,7 +680,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         type: 'string',
       },
       {
-        name: 'timeLimit',
+        name: 'minutesToSolve',
         label: 'Number of minutes after which the letters are refreshed',
         type: 'number',
         defaultValue: 3
@@ -686,7 +702,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const subreddit = await reddit.getCurrentSubreddit();
     const submittedWords = event.values.words;
     const submittedWordsTitle = event.values.wordsTitle;
-    const submittedTimeLimit = event.values.timeLimit;
+    const minutesToSolve = event.values.minutesToSolve;
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
     const post = await reddit.submitPost({
@@ -715,7 +731,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
 
     await redis.set('words', submittedWords, {expiration: expireTime} );
     await redis.set('wordsTitle', submittedWordsTitle, {expiration: expireTime});
-    await redis.set('timeLimit', submittedTimeLimit.toString(), {expiration: expireTime});
+    await redis.set('minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
   
     ui.showToast({
       text: `Successfully created an Unscramble game post!`,
@@ -906,7 +922,7 @@ Devvit.addCustomPostType({
           </hstack>
           <text style="body" wrap size="medium" color='black'>
             This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of two {game.wordsTitle} scrambled together. Tap/click on the letters to select, and click on submit after the word is completed.
-            New set of scrambled letters are presented after both the names are solved, or after {minutesToSolve} minute(s).
+            New set of scrambled letters are presented after both the names are solved, or after {game.minutesToSolve} minute(s).
           </text>
           <spacer size="small" />
           <hstack alignment='start middle'>
