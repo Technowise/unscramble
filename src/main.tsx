@@ -666,10 +666,10 @@ Devvit.addCustomPostType({
         <SelectedLettersBlock game={game} />
 
         <spacer size="small" />  
-        <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="100%">
+        <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="312px">
           Game Activity Feed:
         </text>
-        <vstack borderColor={borderColour} padding='xsmall' height="182px" width="330px" backgroundColor='white'>
+        <vstack borderColor={borderColour} padding='xsmall' height="182px" width="312px" backgroundColor='white'>
           <vstack>
           {
               game.statusMessages.map((message) => (
