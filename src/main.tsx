@@ -649,7 +649,7 @@ Devvit.addCustomPostType({
     console.log(game.words);
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack alignment="center middle">
+      <vstack alignment="center middle" border='none'>
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
           Tap/click letters below to make {wordsTitle}
         </text>
@@ -784,7 +784,7 @@ Devvit.addCustomPostType({
     return (
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
-        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' cornerRadius="small">
+        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' borderColor='#395654' cornerRadius="small">
           {cp[game.currPage]}
           <spacer size="xsmall" />
           <hstack alignment="center middle" width="100%">
