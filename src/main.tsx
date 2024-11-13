@@ -62,6 +62,7 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
 }
 
 //Later, this should come from config value for the subreddit, from redis.
+/*
 const words = ["eric", "kenny", "kyle", "stan", 
                           "butters", "token", "wendy", "bebe", "tweek", "craig", "timmy", 
                           "randy", "sharon", "gerald", "sheila", "liane", 
@@ -70,9 +71,10 @@ const words = ["eric", "kenny", "kyle", "stan",
                           "terrance", "philippe", "jimbo", "hankey",
                           "satan", "scott",
                           "jesus", "buddha"];
+*/
 
 const MaxMessagesCount = 5;
-const wordsTitle = "South Park character names";
+//const wordsTitle = "South Park character names";
 const minutesToSolve = 1
 const leaderBoardPageSize = 10;
 
@@ -93,6 +95,7 @@ Devvit.addSchedulerJob({
     console.log("running change_letters_job");
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send('events', rms);
+    const wordsTitle = await getWordsTitleFromRedis(context);
 
     //Get old names and letters from redis.
     const wordsAndLettersJson = await context.redis.get('wordsAndLetters');
@@ -102,7 +105,7 @@ Devvit.addSchedulerJob({
       pushStatusMessageGlobal("Answer: Two names were: "+nl.words[0].toUpperCase() +" and "+nl.words[1].toUpperCase(), context );
     }
 
-    const wordsAndLettersObj:wordsAndLetters = getRandomWordsAndLetters();
+    const wordsAndLettersObj:wordsAndLetters = await getRandomWordsAndLetters(context);
     await context.redis.set('wordsAndLetters',  JSON.stringify(wordsAndLettersObj), {expiration: expireTime});
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
     await context.realtime.send('events', rm);
@@ -147,7 +150,33 @@ Devvit.addTrigger({
   },
 });
 
-function getRandomWordsAndLetters(){
+async function getWordsFromRedis(context:TriggerContext| ContextAPIClients) {
+  const wordsStr = await context.redis.get('words');
+  if( wordsStr && wordsStr.length > 0 ) {
+    var wordsArray = wordsStr.split(",").map(function (value) {
+      return value.trim();
+   });
+   return wordsArray;
+  }
+  else
+  {
+    return [];
+  }
+}
+
+async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients) {
+  const wordsStr = await context.redis.get('wordsTitle');
+  if( wordsStr && wordsStr.length > 0 ) {
+   return wordsStr;
+  }
+  else
+  {
+    return "";
+  }
+}
+
+async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients) {
+  const words = await getWordsFromRedis(context);
   var word1index = Math.floor(Math.random() * words.length);
   var word2index = Math.floor(Math.random() * words.length);
 
@@ -193,7 +222,9 @@ class UnscrambleGame {
   private _channel: UseChannelResult<RealtimeMessage>;
   private _leaderBoardRec:UseStateResult<leaderBoard[]>;
   private _currPage: UseStateResult<Pages>;
-
+  private _allWords: UseStateResult<string[]>;
+  private _wordsTitle: UseStateResult<string>;
+  
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
     this._ui = context.ui;
@@ -206,6 +237,19 @@ class UnscrambleGame {
         messages = JSON.parse(smJson);
       }
       return messages;//TODO: set this up to get list of current status messages from redis.
+    });
+
+    this._allWords = context.useState(async () => {
+      const words = await getWordsFromRedis(context);
+      return words;
+    });
+
+    this._wordsTitle = context.useState(async () => {
+      const wordsTitle = await this.redis.get('wordsTitle');
+      if(wordsTitle && wordsTitle.length > 0 ) {
+        return wordsTitle;
+      }
+      return "";
     });
   
     this._myPostId = context.useState(async () => {
@@ -233,7 +277,7 @@ class UnscrambleGame {
           return nl;
         }
         else {
-          const nl:wordsAndLetters = getRandomWordsAndLetters();
+          const nl:wordsAndLetters = await getRandomWordsAndLetters(context);
           await context.redis.set('wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
           return nl;
         }
@@ -286,7 +330,7 @@ class UnscrambleGame {
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const nl = msg.payload as wordsAndLetters;
           this.wordsAndLetters = nl;        
-          this.pushStatusMessage("Which two "+wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", false );
+          this.pushStatusMessage("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", false );
 
           let dateNow = new Date();
           const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
@@ -365,6 +409,14 @@ class UnscrambleGame {
 
   public get words() {
     return this._wordsAndLettersObj[0].words;
+  }
+
+  public get allWords() {
+    return this._allWords[0];
+  }
+
+  public get wordsTitle() {
+    return this._wordsTitle[0];
   }
 
   public get statusMessages() {
@@ -455,7 +507,7 @@ class UnscrambleGame {
       ugs.userSelectedLetters = "";
       ugs.remainingTimeInSeconds = remainingTimeMillis/1000;
       this.userGameStatus = ugs;
-      this.pushStatusMessage("Which two "+wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", false );
+      this.pushStatusMessage("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", false );
     }
   } 
 
@@ -482,7 +534,7 @@ class UnscrambleGame {
     const an = await this.getAnsweredWords();
     const isStale = await this.iswordsAndLettersStale();
 
-    if( words.includes(this.userGameStatus.userSelectedLetters) ) {
+    if( this.allWords.includes(this.userGameStatus.userSelectedLetters) ) {
 
       //Check if the submitted name was already answered by someone.
       var alreadyAnswered = false;
@@ -533,12 +585,12 @@ class UnscrambleGame {
 
         an.words.push(pl);
         if( an.words.length == this.wordsAndLetters.words.length ) {//All names are already answered. Time to change the names and letters.
-          const nl:wordsAndLetters = getRandomWordsAndLetters();
+          const nl:wordsAndLetters = await getRandomWordsAndLetters(this._context);
           await this.redis.set('wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewWordsAndLetters};
           await this._channel.send(rm);
           await this.redis.del('answeredWords');   
-          pushStatusMessageGlobal("Which two "+wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", this._context );
+          pushStatusMessageGlobal("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", this._context );
 
           createChangeLettersThread(this._context);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
@@ -608,7 +660,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
       },
       {
         name: 'wordsTitle',
-        label: 'Give title for this set of words (for example: South Park character names, Javascript keywords etc.)',
+        label: 'Title for this set of words (example: South Park character names, Javascript keywords etc.)',
         type: 'string',
       },
       {
@@ -637,7 +689,6 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const submittedTimeLimit = event.values.timeLimit;
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
-
     const post = await reddit.submitPost({
       title: "Which "+submittedWordsTitle+" can you make out of the given letters? [Unscramble Game]",
       subredditName: subreddit.name,
@@ -661,11 +712,10 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     });
 
     const {redis} = context;
-    const myPostId = post.id;
 
-    await redis.set(myPostId+'words', submittedWords, {expiration: expireTime} );
-    await redis.set(myPostId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
-    await redis.set(myPostId+'timeLimit', submittedTimeLimit.toString(), {expiration: expireTime});
+    await redis.set('words', submittedWords, {expiration: expireTime} );
+    await redis.set('wordsTitle', submittedWordsTitle, {expiration: expireTime});
+    await redis.set('timeLimit', submittedTimeLimit.toString(), {expiration: expireTime});
   
     ui.showToast({
       text: `Successfully created an Unscramble game post!`,
@@ -752,7 +802,7 @@ Devvit.addCustomPostType({
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center middle" border='none'>
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-          Tap/click letters below to make {wordsTitle}
+          Tap/click letters below to make {game.wordsTitle}
         </text>
         <spacer size="xsmall" />
 
@@ -855,7 +905,7 @@ Devvit.addCustomPostType({
             </text>
           </hstack>
           <text style="body" wrap size="medium" color='black'>
-            This is a game of unscrambling {wordsTitle}. Each set of letters contains a minimum of two {wordsTitle} scrambled together. Tap/click on the letters to select, and click on submit after the word is completed.
+            This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of two {game.wordsTitle} scrambled together. Tap/click on the letters to select, and click on submit after the word is completed.
             New set of scrambled letters are presented after both the names are solved, or after {minutesToSolve} minute(s).
           </text>
           <spacer size="small" />
@@ -875,7 +925,6 @@ Devvit.addCustomPostType({
         </hstack>
       </vstack>
     );
-
 
     cp = [ <GameBlock game={game} />,
       <LeaderBoardBlock game={game} />,
