@@ -1,4 +1,4 @@
-import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext, JobContext} from '@devvit/public-api';
+import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext, JobContext, useForm} from '@devvit/public-api';
 import { usePagination } from '@devvit/kit';
 Devvit.configure({
   redditAPI: true,
@@ -562,6 +562,7 @@ class UnscrambleGame {
 }
 
 // Add a menu item to the subreddit menu for instantiating the new experience post
+/*
 Devvit.addMenuItem({
   label: 'Create Unscramble Game post',
   location: 'subreddit',
@@ -593,6 +594,106 @@ Devvit.addMenuItem({
     context.ui.navigateTo(post.url);
   },
 });
+*/
+
+const wordsInputForm = Devvit.createForm(  (data) => {
+  return {
+    title : "Create a Unscramble Game post",
+    description:"Use of browser/desktop view is recommended for creating new posts.",
+    fields: [
+      {
+        name: 'words',
+        label: 'Enter comma separated list of words',
+        type: 'paragraph',
+      },
+      {
+        name: 'wordsTitle',
+        label: 'Give title for this set of words (for example: South Park character names, Javascript keywords etc.)',
+        type: 'string',
+      },
+      {
+        name: 'timeLimit',
+        label: 'Number of minutes after which the letters are refreshed',
+        type: 'number',
+        defaultValue: 3
+      },
+      {
+        type: 'select',
+        name: 'flair',
+        label: 'Flair for the post',
+        options: data.flairOptions,
+        helpText: "Select a flair for your post.",
+        required: data.flairOptions.length > 0 ? true: false,
+      },
+    ],
+  };
+  },
+  async (event, context) => {// onSubmit handler
+    const ui  = context.ui;
+    const reddit = context.reddit;
+    const subreddit = await reddit.getCurrentSubreddit();
+    const submittedWords = event.values.words;
+    const submittedWordsTitle = event.values.wordsTitle;
+    const submittedTimeLimit = event.values.timeLimit;
+    const flairId = event.values.flair ? event.values.flair[0] : null;
+
+
+    const post = await reddit.submitPost({
+      title: "Which "+submittedWordsTitle+" can you make out of the given letters? [Unscramble Game]",
+      subredditName: subreddit.name,
+      flairId: flairId,
+      preview: (
+        <vstack width={'100%'} height={'100%'} alignment="center middle">
+        <image
+          url="loading.gif"
+          description="Loading ..."
+          height={'140px'}
+          width={'140px'}
+          imageHeight={'240px'}
+          imageWidth={'240px'}
+        />
+        <spacer size="small" />
+        <text size="large" weight="bold">
+          Loading Unscramble post...
+        </text>
+      </vstack>
+      ),
+    });
+
+    const {redis} = context;
+    const myPostId = post.id;
+
+    await redis.set(myPostId+'words', submittedWords, {expiration: expireTime} );
+    await redis.set(myPostId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
+    await redis.set(myPostId+'timeLimit', submittedTimeLimit.toString(), {expiration: expireTime});
+  
+    ui.showToast({
+      text: `Successfully created an Unscramble game post!`,
+      appearance: 'success',
+    });
+    context.ui.navigateTo(post.url);
+  } );
+
+Devvit.addMenuItem({
+  label: 'Create Unscramble Game post',
+  location: 'subreddit',
+  forUserType: 'moderator',
+  onPress: async (_, context) => {
+    await showCreatePostForm(context);
+  },
+});
+
+async function showCreatePostForm(context:ContextAPIClients) {
+
+  const subreddit = await context.reddit.getCurrentSubreddit();
+  const flairTemplates = await subreddit.getPostFlairTemplates();
+  const options = flairTemplates.map(template => {
+    return { label: template.text, value: template.id };
+  });
+  
+  context.ui.showForm(wordsInputForm, {flairOptions: options});
+}
+
 
 // Add a post type definition
 Devvit.addCustomPostType({
@@ -800,6 +901,3 @@ Devvit.addCustomPostType({
 });
 
 export default Devvit;
-
-
-
