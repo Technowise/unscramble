@@ -668,27 +668,31 @@ const wordsInputForm = Devvit.createForm(  (data) => {
   return {
     title : "Create a Unscramble Game post",
     description:"Use of browser/desktop view is recommended for creating new posts.",
+    acceptLabel: "Submit",
     fields: [
       {
         name: 'words',
         label: 'Enter comma separated list of words',
         type: 'paragraph',
+        helpText:'Comma separated list of words for the Unscramble Game'
       },
       {
         name: 'wordsTitle',
-        label: 'Title for this set of words (example: South Park character names, Javascript keywords etc.)',
+        label: 'Title for the list of words',
         type: 'string',
+        helpText: 'Title for the above list of words (example: South Park character names, Javascript keywords etc.)',
       },
       {
         name: 'minutesToSolve',
-        label: 'Number of minutes after which the letters are refreshed',
+        label: 'Minutes to solve the letters',
         type: 'number',
+        helpText: 'Max number of minutes allowed to solve each set of scrambled/jumbled letters.',
         defaultValue: 3
       },
       {
         type: 'select',
         name: 'flair',
-        label: 'Flair for the post',
+        label: 'Flair',
         options: data.flairOptions,
         helpText: "Select a flair for your post.",
         required: data.flairOptions.length > 0 ? true: false,

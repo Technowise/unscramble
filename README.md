@@ -1,5 +1,5 @@
 # Unscramble Game Overview
-This is a game of unscrambling words. Each set of letters contains a minimum of two words scrambled/jumbled together. Users can tap/click on each of the letters to select, and click on submit after the word is completed. New set of scrambled letters are presented after both the words are solved, or after the timeout. Users can unselect the letter by clicking on the letters in Selected Letters section. All community members are presented with the same set of letters, and anybody in the subreddit can solve the words. 
+This is a game of unscrambling words. The app take two random words, and presents the user with jumbled letters. Users can tap/click on each of the letters to select, and click on submit after the word is completed. New set of scrambled letters are presented after both the words are solved, or after the timeout. Users can unselect the letter by clicking on the letters in Selected Letters section. All community members are presented with the same set of letters, and anybody in the subreddit can solve the words. 
 
 ### How to install and use the app:
 
