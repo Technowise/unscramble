@@ -86,7 +86,7 @@ Devvit.addSchedulerJob({
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
       const nl = wordsAndLettersObj as wordsAndLetters;
-      pushStatusMessageGlobal("Answer: Two names were: "+nl.words[0].toUpperCase() +" and "+nl.words[1].toUpperCase(), context );
+      pushStatusMessageGlobal("Answer: Two words were: "+nl.words[0].toUpperCase() +" and "+nl.words[1].toUpperCase(), context );
     }
 
     const wordsAndLettersObj:wordsAndLetters = await getRandomWordsAndLetters(context);
@@ -342,7 +342,7 @@ class UnscrambleGame {
           this.userGameStatus = UGS;
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
-          this.pushStatusMessage("Answer: Two names were: "+this.wordsAndLetters.words[0].toUpperCase() +" and "+this.wordsAndLetters.words[1].toUpperCase(), false );          
+          this.pushStatusMessage("Answer: Two words were: "+this.wordsAndLetters.words[0].toUpperCase() +" and "+this.wordsAndLetters.words[1].toUpperCase(), false );          
         }
       },
     });
