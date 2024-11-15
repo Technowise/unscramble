@@ -61,18 +61,6 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
   return result;
 }
 
-//Later, this should come from config value for the subreddit, from redis.
-/*
-const words = ["eric", "kenny", "kyle", "stan", 
-                          "butters", "token", "wendy", "bebe", "tweek", "craig", "timmy", 
-                          "randy", "sharon", "gerald", "sheila", "liane", 
-                          "garrison", "mackey", "victoria", 
-                          "chief", "barbrady", "mcdaniels", 
-                          "terrance", "philippe", "jimbo", "hankey",
-                          "satan", "scott",
-                          "jesus", "buddha"];
-*/
-
 const MaxMessagesCount = 5;
 const leaderBoardPageSize = 10;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
@@ -106,7 +94,10 @@ Devvit.addSchedulerJob({
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
     await context.realtime.send('events', rm);
     pushStatusMessageGlobal("Which two "+wordsTitle+" can you make out of "+wordsAndLettersObj.letters.toUpperCase()+" ?", context );
-    await context.redis.expire('changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for changeLettersJobId.
+    await context.redis.expire('changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
+    await context.redis.expire('words', redisExpireTimeSeconds);
+    await context.redis.expire('wordsTitle', redisExpireTimeSeconds);
+    await context.redis.expire('minutesToSolve', redisExpireTimeSeconds);
     await context.redis.del('answeredWords');
   },
 });
@@ -177,8 +168,7 @@ async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients)
   if( wordsStr && wordsStr.length > 0 ) {
    return wordsStr;
   }
-  else
-  {
+  else {
     return "";
   }
 }
@@ -326,8 +316,6 @@ class UnscrambleGame {
           }
         }
         leaderBoardRecords.sort((a, b) =>  b.totalWordsSolved - a.totalWordsSolved);
-        console.log("Current leaderboard records:");
-        console.log(leaderBoardRecords);
         return leaderBoardRecords;
       } 
       return [];
@@ -538,7 +526,6 @@ class UnscrambleGame {
       const nl = wordsAndLettersObj as wordsAndLetters;
       
       if( nl.letters != this.wordsAndLetters.letters ) {
-        //Update the current names and letters object.
         this.wordsAndLetters = nl;
         return true;
       }
@@ -628,41 +615,6 @@ class UnscrambleGame {
   }
 
 }
-
-// Add a menu item to the subreddit menu for instantiating the new experience post
-/*
-Devvit.addMenuItem({
-  label: 'Create Unscramble Game post',
-  location: 'subreddit',
-  forUserType: 'moderator',
-  onPress: async (_event, context) => {
-    const { reddit, ui } = context;
-    const subreddit = await reddit.getCurrentSubreddit();
-    const post = await reddit.submitPost({
-      title: "Which "+wordsTitle+" can you make out of the given letters? [Unscramble Game]",
-      subredditName: subreddit.name,
-      preview: (
-        <vstack width={'100%'} height={'100%'} alignment="center middle">
-        <image
-          url="loading.gif"
-          description="Loading ..."
-          height={'140px'}
-          width={'140px'}
-          imageHeight={'240px'}
-          imageWidth={'240px'}
-        />
-        <spacer size="small" />
-        <text size="large" weight="bold">
-          Loading Unscramble post...
-        </text>
-      </vstack>
-      ),
-    });
-    ui.showToast({ text: 'Created an Unscramble post!' });
-    context.ui.navigateTo(post.url);
-  },
-});
-*/
 
 const wordsInputForm = Devvit.createForm(  (data) => {
   return {
@@ -815,9 +767,6 @@ Devvit.addCustomPostType({
         </vstack>
       </vstack>
       );
-
-    console.log("here are the random words:");
-    console.log(game.words);
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center middle" border='none'>

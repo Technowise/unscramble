@@ -1,3 +1,7 @@
+Give a hint to solve (like the word starts with letter X) after a minute has passed.
+
+Add postId into all redis keys so that they do not collide with other posts.
+
 Periodically refresh the values of words, words-title and minutes value in redis so that it does not expire.
 Make minutesToSolve to come from redis instead of fixed constant.
 Add leaderboard with number of names solved by each user. - Done.
