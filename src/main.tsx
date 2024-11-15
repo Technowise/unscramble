@@ -329,7 +329,7 @@ class UnscrambleGame {
         if(msg.type == PayloadType.SubmittedWord) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
-          this.pushStatusMessage(pl.username+" submitted the name: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
+          this.pushStatusMessage(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
         }
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const nl = msg.payload as wordsAndLetters;
@@ -586,7 +586,7 @@ class UnscrambleGame {
         await this._channel.send(rm);
         this.resetSelectedLetters();
         const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];      
-        pushStatusMessageGlobal(pl.username+" submitted the name: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context);
+        pushStatusMessageGlobal(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context);
 
         an.words.push(pl);
         if( an.words.length == this.wordsAndLetters.words.length ) {//All names are already answered. Time to change the names and letters.
