@@ -662,7 +662,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
     const post = await reddit.submitPost({
-      title: "Which "+submittedWordsTitle+" can you make out of the given letters? [Unscramble Game]",
+      title: "Which "+submittedWordsTitle+" can you make out of the given letters? [Unscramble-Game]",
       subredditName: subreddit.name,
       flairId: flairId,
       preview: (
