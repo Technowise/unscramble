@@ -62,7 +62,7 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
 }
 
 const MaxMessagesCount = 5;
-const leaderBoardPageSize = 10;
+const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 
@@ -81,7 +81,7 @@ Devvit.addSchedulerJob({
     await context.realtime.send('events', rms);
     const wordsTitle = await getWordsTitleFromRedis(context);
 
-    //Get old names and letters from redis.
+    //Get old words and letters from redis.
     const wordsAndLettersJson = await context.redis.get('wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
@@ -537,7 +537,6 @@ class UnscrambleGame {
   }
 
   public async verifyWord(){
-
     const an = await this.getAnsweredWords();
     const isStale = await this.iswordsAndLettersStale();
     var alreadyAnswered = false;
@@ -589,7 +588,7 @@ class UnscrambleGame {
         pushStatusMessageGlobal(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context);
 
         an.words.push(pl);
-        if( an.words.length == this.wordsAndLetters.words.length ) {//All names are already answered. Time to change the names and letters.
+        if( an.words.length == this.wordsAndLetters.words.length ) {//All words are already answered. Time to change the words and letters.
           const nl:wordsAndLetters = await getRandomWordsAndLetters(this._context);
           await this.redis.set('wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewWordsAndLetters};
@@ -598,7 +597,7 @@ class UnscrambleGame {
           pushStatusMessageGlobal("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", this._context );
           createChangeLettersThread(this._context);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
-        else {//add to answered names list in redis.
+        else {//add to answered words list in redis.
           await this.redis.set('answeredWords',  JSON.stringify(an), {expiration: expireTime});
         }
       }
@@ -706,7 +705,6 @@ Devvit.addMenuItem({
 });
 
 async function showCreatePostForm(context:ContextAPIClients) {
-
   const subreddit = await context.reddit.getCurrentSubreddit();
   const flairTemplates = await subreddit.getPostFlairTemplates();
   const options = flairTemplates.map(template => {
@@ -715,7 +713,6 @@ async function showCreatePostForm(context:ContextAPIClients) {
   
   context.ui.showForm(wordsInputForm, {flairOptions: options});
 }
-
 
 // Add a post type definition
 Devvit.addCustomPostType({
@@ -819,7 +816,7 @@ Devvit.addCustomPostType({
              Username
             </text>
             <text style="heading" size="small" color="black" width="30%" alignment="start">
-              Total Names
+              Total Words
             </text>
           </hstack>
           <vstack width="100%" padding="small" height="70%">
@@ -875,7 +872,7 @@ Devvit.addCustomPostType({
           </hstack>
           <text style="body" wrap size="medium" color='black'>
             This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of two {game.wordsTitle} scrambled together. Tap/click on the letters to select, and click on submit after the word is completed.
-            New set of scrambled letters are presented after both the names are solved, or after {game.minutesToSolve} minute(s).
+            New set of scrambled letters are presented after both the words are solved, or after {game.minutesToSolve} minute(s).
           </text>
           <spacer size="small" />
           <hstack alignment='start middle'>
