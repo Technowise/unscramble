@@ -76,46 +76,52 @@ const letterBorderColour = 'black';
 Devvit.addSchedulerJob({
   name: 'change_letters_job',  
   onRun: async(event, context) => {
+    var myPostId = event.data!.postId as string;
+
     console.log("running change_letters_job");
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send('events', rms);
-    const wordsTitle = await getWordsTitleFromRedis(context);
+    const wordsTitle = await getWordsTitleFromRedis(context, myPostId);
 
     //Get old words and letters from redis.
-    const wordsAndLettersJson = await context.redis.get('wordsAndLetters');
+    const wordsAndLettersJson = await context.redis.get(myPostId+'wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
       const nl = wordsAndLettersObj as wordsAndLetters;
-      pushStatusMessageGlobal("Answer: Two words were: "+nl.words[0].toUpperCase() +" and "+nl.words[1].toUpperCase(), context );
+      pushStatusMessageGlobal("Answer: Two words were: "+nl.words[0].toUpperCase() +" and "+nl.words[1].toUpperCase(), context, myPostId );
     }
 
-    const wordsAndLettersObj:wordsAndLetters = await getRandomWordsAndLetters(context);
-    await context.redis.set('wordsAndLetters',  JSON.stringify(wordsAndLettersObj), {expiration: expireTime});
+    const wordsAndLettersObj:wordsAndLetters = await getRandomWordsAndLetters(context, myPostId);
+    await context.redis.set(myPostId+'wordsAndLetters',  JSON.stringify(wordsAndLettersObj), {expiration: expireTime});
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
     await context.realtime.send('events', rm);
-    pushStatusMessageGlobal("Which two "+wordsTitle+" can you make out of "+wordsAndLettersObj.letters.toUpperCase()+" ?", context );
-    await context.redis.expire('changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
-    await context.redis.expire('words', redisExpireTimeSeconds);
-    await context.redis.expire('wordsTitle', redisExpireTimeSeconds);
-    await context.redis.expire('minutesToSolve', redisExpireTimeSeconds);
-    await context.redis.del('answeredWords');
+    pushStatusMessageGlobal("Which two "+wordsTitle+" can you make out of "+wordsAndLettersObj.letters.toUpperCase()+" ?", context, myPostId );
+    await context.redis.expire(myPostId+'changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
+    
+    await context.redis.expire(myPostId+'words', redisExpireTimeSeconds);
+    await context.redis.expire(myPostId+'wordsTitle', redisExpireTimeSeconds);
+    await context.redis.expire(myPostId+'minutesToSolve', redisExpireTimeSeconds);
+    await context.redis.del(myPostId+'answeredWords');
   },
 });
 
-async function createChangeLettersThread(context:TriggerContext| ContextAPIClients) {
-  const minutesToSolve = await getMinutesToSolveFromRedis(context);
-  const allJobs = await context.scheduler.listJobs();
-  for(var i=0; i< allJobs.length; i++ ){
-    await context.scheduler.cancelJob(allJobs[i].id);//delete all old schedules.
+async function createChangeLettersThread(context:TriggerContext| ContextAPIClients, postId:string) {
+  const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
+  const oldJobId = await context.redis.get(postId+'changeLettersJobId');
+  
+  if( oldJobId && oldJobId.length > 0 ) {
+    await context.scheduler.cancelJob(oldJobId);
   }
 
   try {
     const jobId = await context.scheduler.runJob({
       cron: "*/"+minutesToSolve+" * * * *",
       name: 'change_letters_job',
-      data: {},
+      data: { 
+        postId: postId,
+      }
     });
-    await context.redis.set('changeLettersJobId', jobId, {expiration: expireTime});
+    await context.redis.set(postId+'changeLettersJobId', jobId, {expiration: expireTime});
     console.log("Created job schedule for changeLetters: "+jobId);
   } catch (e) {
     console.log('error - was not able to create job:', e);
@@ -124,22 +130,50 @@ async function createChangeLettersThread(context:TriggerContext| ContextAPIClien
   
 }
 
-Devvit.addTrigger({  
-  event: 'AppInstall',  
-  onEvent: async (_, context) => {
-    createChangeLettersThread(context);
+Devvit.addTrigger({
+  event: 'PostCreate',
+  onEvent: async (event, context) => {
+    const postId = event.post?.id ?? "";
+    if( postId != "") {
+      const post = await context.reddit.getPostById(postId);
+      if ( await isPostCreatedByCurrentApp(context, postId) ) {
+        createChangeLettersThread(context, postId);
+      } else {
+        console.log("This post("+postId+") was not created by unscramble app");
+      }
+    }
   },
 });
 
+async function isPostCreatedByCurrentApp(context: TriggerContext| ContextAPIClients, postId:string) {
+  const post = await context.reddit.getPostById(postId);
+  const authorId = post.authorId ?? "";
+  const author = await context.reddit.getUserById(authorId);
+  const appUser = await context.reddit.getAppUser();
+  if ( author && author.username === appUser.username) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 Devvit.addTrigger({  
-  event: 'AppUpgrade',  
-  onEvent: async (_, context) => {
-    createChangeLettersThread(context);
+  event : 'PostDelete',  
+  onEvent: async ( event, context) => {
+    const postId = event.postId?? "";
+    if ( await isPostCreatedByCurrentApp(context, postId) ) {
+      const oldJobId = await context.redis.get(postId+'changeLettersJobId');
+      if( oldJobId && oldJobId.length > 0 ) {
+        await context.scheduler.cancelJob(oldJobId);
+        console.log("Deleted scheduled job since the post was deleted.");
+      }
+    }
+
   },
 });
 
-async function getWordsFromRedis(context:TriggerContext| ContextAPIClients) {
-  const wordsStr = await context.redis.get('words');
+async function getWordsFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
+  const wordsStr = await context.redis.get(postId+'words');
   if( wordsStr && wordsStr.length > 0 ) {
     var wordsArray = wordsStr.split(",").map(function (value) {
       return value.trim();
@@ -152,8 +186,8 @@ async function getWordsFromRedis(context:TriggerContext| ContextAPIClients) {
   }
 }
 
-async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClients) {
-  const minutesStr = await context.redis.get('minutesToSolve');
+async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
+  const minutesStr = await context.redis.get(postId+'minutesToSolve');
   if( minutesStr && minutesStr.length > 0 ) {
    return parseInt(minutesStr);
   }
@@ -163,8 +197,8 @@ async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClie
   }
 }
 
-async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients) {
-  const wordsStr = await context.redis.get('wordsTitle');
+async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
+  const wordsStr = await context.redis.get(postId+'wordsTitle');
   if( wordsStr && wordsStr.length > 0 ) {
    return wordsStr;
   }
@@ -173,9 +207,9 @@ async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients)
   }
 }
 
-async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients) {
-  const words = await getWordsFromRedis(context);
-  const minutesToSolve = await getMinutesToSolveFromRedis(context);
+async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients, postId:string) {
+  const words = await getWordsFromRedis(context, postId);
+  const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
   const lettersExpireTimeSeconds = minutesToSolve * 60;
   var word1index = Math.floor(Math.random() * words.length);
   var word2index = Math.floor(Math.random() * words.length);
@@ -195,9 +229,9 @@ async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClient
 }
 
 //Update messages in redis so that other clients which load messages first time get the messages.
-async function pushStatusMessageGlobal(message:string, context:JobContext|ContextAPIClients){
+async function pushStatusMessageGlobal(message:string, context:JobContext|ContextAPIClients, postId: string){
   var messages: string[] = [];
-  var smJson = await context.redis.get('statusMessages');
+  var smJson = await context.redis.get(postId+'statusMessages');
   if( smJson && smJson.length > 0 ) {
     messages = JSON.parse(smJson);
   }
@@ -205,7 +239,7 @@ async function pushStatusMessageGlobal(message:string, context:JobContext|Contex
   if( messages.length > MaxMessagesCount) {
     messages.shift();//Remove last message if we already have 10 messages.
   }
-  await context.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
+  await context.redis.set(postId+'statusMessages', JSON.stringify(messages), {expiration: expireTime});
 }
 
 class UnscrambleGame {
@@ -233,33 +267,33 @@ class UnscrambleGame {
     this._ScreenIsWide = this.isScreenWide();
     this._statusMessages = context.useState(async () => {
       var messages: string[] = [];
-      var smJson = await this.redis.get('statusMessages');
+      var smJson = await this.redis.get(postId+'statusMessages');
       if( smJson && smJson.length > 0 ) {
         messages = JSON.parse(smJson);
       }
       return messages;
     });
 
-    this._allWords = context.useState(async () => {
-      const words = await getWordsFromRedis(context);
-      return words;
-    });
-
     this._wordsTitle = context.useState(async () => {
-      const wordsTitle = await this.redis.get('wordsTitle');
+      const wordsTitle = await this.redis.get(postId+'wordsTitle');
       if(wordsTitle && wordsTitle.length > 0 ) {
         return wordsTitle;
       }
       return "";
     });
 
-    this._minutesToSolve = context.useState(async () => {
-      const minutes = await getMinutesToSolveFromRedis(context);
-      return minutes;
-    });
-    
     this._myPostId = context.useState(async () => {
       return postId;
+    }); 
+
+    this._minutesToSolve = context.useState(async () => {
+      const minutes = await getMinutesToSolveFromRedis(context, this.myPostId);
+      return minutes;
+    });
+
+    this._allWords = context.useState(async () => {
+      const words = await getWordsFromRedis(context, this.myPostId);
+      return words;
     });
 
     this._currentUsername = context.useState(async () => {
@@ -276,15 +310,15 @@ class UnscrambleGame {
 
     this._wordsAndLettersObj = context.useState<wordsAndLetters>(
       async() =>{
-        const wordsAndLettersJson = await this.redis.get('wordsAndLetters');
+        const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
         if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
           const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
           const nl = wordsAndLettersObj as wordsAndLetters;
           return nl;
         }
         else {
-          const nl:wordsAndLetters = await getRandomWordsAndLetters(context);
-          await context.redis.set('wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
+          const nl:wordsAndLetters = await getRandomWordsAndLetters(context, this.myPostId);
+          await context.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
           return nl;
         }
       }
@@ -358,7 +392,7 @@ class UnscrambleGame {
     }
     this.statusMessages =  messages;
     if( updateRedis ) {
-      await this.redis.set('statusMessages', JSON.stringify(messages), {expiration: expireTime});
+      await this.redis.set(this.myPostId+'statusMessages', JSON.stringify(messages), {expiration: expireTime});
     }
   }
 
@@ -480,6 +514,11 @@ class UnscrambleGame {
     this._currPage[1](value);
   }
 
+  set myPostId(value: string) {
+    this._myPostId [0] = value;
+    this._myPostId[1](value);
+  }
+
   private isScreenWide() {
     const width = this._context.dimensions?.width ?? null;
     return width == null ||  width < 688 ? false : true;
@@ -490,7 +529,7 @@ class UnscrambleGame {
   };
 
   public async getAnsweredWords() {
-    const answeredWordsJson = await this.redis.get('answeredWords');
+    const answeredWordsJson = await this.redis.get(this.myPostId+'answeredWords');
     if( answeredWordsJson && answeredWordsJson.length > 0 ) {
       const answeredWordsObj = JSON.parse(answeredWordsJson);
       const an = answeredWordsObj as answeredWords;
@@ -503,7 +542,7 @@ class UnscrambleGame {
   }
 
   public async refreshUserLetters() {
-    const wordsAndLettersJson = await this.redis.get('wordsAndLetters');
+    const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
       const nl = wordsAndLettersObj as wordsAndLetters;
@@ -520,7 +559,7 @@ class UnscrambleGame {
   } 
 
   public async iswordsAndLettersStale() {
-    const wordsAndLettersJson = await this.redis.get('wordsAndLetters');
+    const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
       const nl = wordsAndLettersObj as wordsAndLetters;
@@ -585,20 +624,20 @@ class UnscrambleGame {
         await this._channel.send(rm);
         this.resetSelectedLetters();
         const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];      
-        pushStatusMessageGlobal(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context);
+        pushStatusMessageGlobal(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context, this.myPostId);
 
         an.words.push(pl);
         if( an.words.length == this.wordsAndLetters.words.length ) {//All words are already answered. Time to change the words and letters.
-          const nl:wordsAndLetters = await getRandomWordsAndLetters(this._context);
-          await this.redis.set('wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
+          const nl:wordsAndLetters = await getRandomWordsAndLetters(this._context, this.myPostId);
+          await this.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewWordsAndLetters};
           await this._channel.send(rm);
-          await this.redis.del('answeredWords');   
-          pushStatusMessageGlobal("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", this._context );
-          createChangeLettersThread(this._context);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
+          await this.redis.del(this.myPostId+'answeredWords');   
+          pushStatusMessageGlobal("Which two "+this.wordsTitle+" can you make out of "+nl.letters.toUpperCase()+" ?", this._context, this.myPostId );
+          createChangeLettersThread(this._context, this.myPostId);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
         else {//add to answered words list in redis.
-          await this.redis.set('answeredWords',  JSON.stringify(an), {expiration: expireTime});
+          await this.redis.set(this.myPostId+'answeredWords',  JSON.stringify(an), {expiration: expireTime});
         }
       }
       else if( isStale && !alreadyAnswered){ //Refresh the wordsAndLetters object with the present one.
@@ -684,9 +723,11 @@ const wordsInputForm = Devvit.createForm(  (data) => {
 
     const {redis} = context;
 
-    await redis.set('words', submittedWords, {expiration: expireTime} );
-    await redis.set('wordsTitle', submittedWordsTitle, {expiration: expireTime});
-    await redis.set('minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
+    var postId = post.id;
+
+    await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
+    await redis.set(postId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
+    await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
   
     ui.showToast({
       text: `Successfully created an Unscramble game post!`,
@@ -721,6 +762,8 @@ Devvit.addCustomPostType({
   render: (_context) => {
 
     const myPostId = _context.postId ?? 'defaultPostId';
+    console.log("Creating a new post with postID: "+myPostId );
+
     const game = new UnscrambleGame(_context, myPostId);
     const {currentPage, currentItems, toNextPage, toPrevPage} = usePagination(_context, game.leaderBoardRec, leaderBoardPageSize);
     let cp: JSX.Element[];
