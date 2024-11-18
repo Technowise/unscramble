@@ -22,6 +22,8 @@ Leaderboard contains the list of usernames, and the number of words they have so
   * Initial Release with features of unscrambling two words, live game feed and leaderboard features.
 * v0.0.8
   * Enablement to have multiple posts of this game in same subreddit. Add option to either have one word, or two word scrambled at a time for solving.
+* 0.0.14.8
+  * Add option to delete Leaderboard entries for moderators.
 
 ## Links
 ### Demo
