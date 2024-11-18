@@ -248,6 +248,7 @@ class UnscrambleGame {
   private _currPage: UseStateResult<Pages>;
   private _allWords: UseStateResult<string[]>;
   private _wordsTitle: UseStateResult<string>;
+  private _wordsCount: UseStateResult<number>;
   private _minutesToSolve: UseStateResult<number>;
   
   constructor( context: ContextAPIClients, postId: string) {
@@ -269,6 +270,14 @@ class UnscrambleGame {
         return wordsTitle;
       }
       return "";
+    });
+
+    this._wordsCount = context.useState(async () => {
+      const wordsCount = await this.redis.get(postId+'wordsCount');
+      if(wordsCount && wordsCount.length > 0 ) {
+        return parseInt(wordsCount);
+      }
+      return 2;
     });
 
     this._myPostId = context.useState(async () => {
@@ -694,6 +703,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const submittedWords = event.values.words;
     const submittedWordsTitle = event.values.wordsTitle;
     const minutesToSolve = event.values.minutesToSolve;
+    const wordsCount = event.values.wordsCount;
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
     const post = await reddit.submitPost({
@@ -724,6 +734,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
 
   await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
   await redis.set(postId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
+  await redis.set(postId+'wordsCount', wordsCount, {expiration: expireTime});
   await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
 
   ui.showToast({
