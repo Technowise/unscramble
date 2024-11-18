@@ -77,8 +77,7 @@ Devvit.addSchedulerJob({
   name: 'change_letters_job',  
   onRun: async(event, context) => {
     var myPostId = event.data!.postId as string;
-
-    console.log("running change_letters_job");
+    console.log("running change_letters_job for post: "+myPostId);
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send('events', rms);
     const wordsTitle = await getWordsTitleFromRedis(context, myPostId);
@@ -127,7 +126,6 @@ async function createChangeLettersThread(context:TriggerContext| ContextAPIClien
     console.log('error - was not able to create job:', e);
     throw e;
   }
-  
 }
 
 Devvit.addTrigger({
@@ -138,8 +136,6 @@ Devvit.addTrigger({
       const post = await context.reddit.getPostById(postId);
       if ( await isPostCreatedByCurrentApp(context, postId) ) {
         createChangeLettersThread(context, postId);
-      } else {
-        console.log("This post("+postId+") was not created by unscramble app");
       }
     }
   },
@@ -165,10 +161,9 @@ Devvit.addTrigger({
       const oldJobId = await context.redis.get(postId+'changeLettersJobId');
       if( oldJobId && oldJobId.length > 0 ) {
         await context.scheduler.cancelJob(oldJobId);
-        console.log("Deleted scheduled job since the post was deleted.");
+        console.log("Deleted scheduled job since the post("+postId+") was deleted.");
       }
     }
-
   },
 });
 
@@ -180,10 +175,7 @@ async function getWordsFromRedis(context:TriggerContext| ContextAPIClients, post
    });
    return wordsArray;
   }
-  else
-  {
-    return [];
-  }
+  return [];
 }
 
 async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
@@ -191,8 +183,7 @@ async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClie
   if( minutesStr && minutesStr.length > 0 ) {
    return parseInt(minutesStr);
   }
-  else
-  {
+  else {
     return 2;//Default to two minutes.
   }
 }
@@ -247,7 +238,6 @@ class UnscrambleGame {
   private redis: RedisClient;
   private readonly _ui: UIClient;
   private _context: ContextAPIClients;
-  private _ScreenIsWide: boolean;
   private _currentUsername: UseStateResult<string>;
   private _myPostId: UseStateResult<string>;
   private _wordsAndLettersObj:UseStateResult<wordsAndLetters>;
@@ -264,7 +254,6 @@ class UnscrambleGame {
     this._context = context;
     this._ui = context.ui;
     this.redis = context.redis;
-    this._ScreenIsWide = this.isScreenWide();
     this._statusMessages = context.useState(async () => {
       var messages: string[] = [];
       var smJson = await this.redis.get(postId+'statusMessages');
@@ -519,11 +508,6 @@ class UnscrambleGame {
     this._myPostId[1](value);
   }
 
-  private isScreenWide() {
-    const width = this._context.dimensions?.width ?? null;
-    return width == null ||  width < 688 ? false : true;
-  }
-
   public async openIntroPage(){
     this._context.ui.navigateTo('https://www.reddit.com/r/Spottit/comments/1ethp30/introduction_to_spottit_game/');
   };
@@ -582,12 +566,12 @@ class UnscrambleGame {
 
     if( this.allWords.includes(this.userGameStatus.userSelectedLetters) ) {
 
-      //Check if the submitted name was already answered by someone.
+      //Check if the submitted word was already answered by someone.
       var foundIndex = an.words.findIndex(x => x.word == this.userGameStatus.userSelectedLetters);
       if( foundIndex >= 0 ) {
         alreadyAnswered = true;
         this._context.ui.showToast({
-          text: "This name was already answered by /u/"+an.words[foundIndex].username,
+          text: "This word was already answered by /u/"+an.words[foundIndex].username,
           appearance:"neutral",
         });       
       }
@@ -651,7 +635,6 @@ class UnscrambleGame {
       });      
     }
   }
-
 }
 
 const wordsInputForm = Devvit.createForm(  (data) => {
@@ -686,9 +669,8 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         options: data.flairOptions,
         helpText: "Select a flair for your post.",
         required: data.flairOptions.length > 0 ? true: false,
-      },
-    ],
-  };
+      }, ],
+    };
   },
   async (event, context) => {// onSubmit handler
     const ui  = context.ui;
@@ -719,22 +701,22 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         </text>
       </vstack>
       ),
-    });
+  });
 
-    const {redis} = context;
+  const {redis} = context;
 
-    var postId = post.id;
+  var postId = post.id;
 
-    await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
-    await redis.set(postId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
-    await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
-  
-    ui.showToast({
-      text: `Successfully created an Unscramble game post!`,
-      appearance: 'success',
-    });
-    context.ui.navigateTo(post.url);
-  } );
+  await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
+  await redis.set(postId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
+  await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
+
+  ui.showToast({
+    text: `Successfully created an Unscramble game post!`,
+    appearance: 'success',
+  });
+  context.ui.navigateTo(post.url);
+});
 
 Devvit.addMenuItem({
   label: 'Create Unscramble Game post',
@@ -760,10 +742,7 @@ Devvit.addCustomPostType({
   name: 'Unscramble Post',
   height: 'tall',
   render: (_context) => {
-
     const myPostId = _context.postId ?? 'defaultPostId';
-    console.log("Creating a new post with postID: "+myPostId );
-
     const game = new UnscrambleGame(_context, myPostId);
     const {currentPage, currentItems, toNextPage, toPrevPage} = usePagination(_context, game.leaderBoardRec, leaderBoardPageSize);
     let cp: JSX.Element[];
