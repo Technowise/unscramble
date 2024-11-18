@@ -72,6 +72,7 @@ const expireTime = new Date(dateNow.getTime() + milliseconds);
 const textColour = 'white';
 const borderColour = "#7fa78c";
 const letterBorderColour = 'black';
+const gameTitle = "Unscramble-Game";
 
 Devvit.addSchedulerJob({
   name: 'change_letters_job',  
@@ -210,27 +211,6 @@ async function getWordsCountFromRedis(context:TriggerContext| ContextAPIClients,
     return 2;
   }
 }
-/*
-async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients, postId:string) {
-  const words = await getWordsFromRedis(context, postId);
-  const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
-  const lettersExpireTimeSeconds = minutesToSolve * 60;
-  var word1index = Math.floor(Math.random() * words.length);
-  var word2index = Math.floor(Math.random() * words.length);
-
-  while( word2index == word1index) {//Make sure we do not end up with same words.
-    word2index = Math.floor(Math.random() * words.length);
-  }
-
-  var allLetters = words[word1index] + words[ word2index];
-  var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
-  let dateNow = new Date();
-  const milliseconds = lettersExpireTimeSeconds * 1000;
-  var lettersExpireTimeMillis = dateNow.getTime();
-  lettersExpireTimeMillis = lettersExpireTimeMillis + milliseconds;
-  const wl:wordsAndLetters = {words: [ words[word1index], words[word2index] ], letters: shuffledLetters, expireTimeMillis: lettersExpireTimeMillis };
-  return wl;
-}*/
 
 async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients, postId:string) {
   const words = await getWordsFromRedis(context, postId);
@@ -428,7 +408,7 @@ class UnscrambleGame {
     var messages = this.statusMessages;
     messages.push(message);
     if( messages.length > MaxMessagesCount) {
-      messages.shift();//Remove last message if we already have 10 messages.
+      messages.shift();//Remove last message if we already have MaxMessagesCount messages.
     }
     this.statusMessages =  messages;
     if( updateRedis ) {
@@ -696,15 +676,15 @@ class UnscrambleGame {
 
 const wordsInputForm = Devvit.createForm(  (data) => {
   return {
-    title : "Create a Unscramble Game post",
-    description:"Use of browser/desktop view is recommended for creating new posts.",
+    title : `Create an ${gameTitle} post`,
+    description:"Please provide comma separated list of words, title for the words, number of words to scramble at a time, and time limit for solving. Use of browser/desktop view is recommended for creating new posts.",
     acceptLabel: "Submit",
     fields: [
       {
         name: 'words',
         label: 'Enter comma separated list of words',
         type: 'paragraph',
-        helpText:'Comma separated list of words for the Unscramble Game',
+        helpText: `Comma separated list of words for the ${gameTitle}`,
         required: true
       },
       {
@@ -755,7 +735,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
     const post = await reddit.submitPost({
-      title: "Which "+submittedWordsTitle+" can you make out of the given letters? [Unscramble-Game]",
+      title: `Which ${submittedWordsTitle} can you make out of the given letters? [${gameTitle}]`,
       subredditName: subreddit.name,
       flairId: flairId,
       preview: (
@@ -786,14 +766,14 @@ const wordsInputForm = Devvit.createForm(  (data) => {
   await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
 
   ui.showToast({
-    text: `Successfully created an Unscramble game post!`,
+    text: `Successfully created an ${gameTitle} post!`,
     appearance: 'success',
   });
   context.ui.navigateTo(post.url);
 });
 
 Devvit.addMenuItem({
-  label: 'Create Unscramble Game post',
+  label: `Create ${gameTitle} post`,
   location: 'subreddit',
   forUserType: 'moderator',
   onPress: async (_, context) => {
@@ -963,7 +943,7 @@ Devvit.addCustomPostType({
           <hstack alignment='start middle'>
             <icon name="search" size="xsmall" color='black'></icon>
             <text style="heading" size="medium" color='black'>
-              &nbsp; How to play Unscramble Game
+              &nbsp; How to play {gameTitle}
             </text>
           </hstack>
           <text style="body" wrap size="medium" color='black'>
