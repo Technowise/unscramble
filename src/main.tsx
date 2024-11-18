@@ -95,7 +95,9 @@ Devvit.addSchedulerJob({
     await context.redis.set(myPostId+'wordsAndLetters',  JSON.stringify(wordsAndLettersObj), {expiration: expireTime});
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
     await context.realtime.send(myPostId+'events', rm);
-    pushStatusMessageGlobal("Which "+ (wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+wordsAndLettersObj.letters+" ?", context, myPostId );
+
+    const wordsTitleEdit = wordsCount == 2? wordsTitle : wordsTitle.slice(0, -1);
+    pushStatusMessageGlobal("Which "+ (wordsCount == 2? "two " :"")+wordsTitleEdit+" can you make out of "+wordsAndLettersObj.letters+" ?", context, myPostId );
     await context.redis.expire(myPostId+'changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
     
     await context.redis.expire(myPostId+'words', redisExpireTimeSeconds);
@@ -404,8 +406,9 @@ class UnscrambleGame {
         }
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const nl = msg.payload as wordsAndLetters;
-          this.wordsAndLetters = nl;        
-          this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two " :"")+this.wordsTitle+" can you make out of "+nl.letters+" ?", false );
+          this.wordsAndLetters = nl;
+          const wordsTitle = this.wordsCount == 2? this.wordsTitle : this.wordsTitle.slice(0, -1);
+          this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+nl.letters+" ?", false );
 
           let dateNow = new Date();
           const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
@@ -590,7 +593,8 @@ class UnscrambleGame {
       ugs.userSelectedLetters = "";
       ugs.remainingTimeInSeconds = remainingTimeMillis/1000;
       this.userGameStatus = ugs;
-      this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two " :"")+this.wordsTitle+" can you make out of "+nl.letters+" ?", false );
+      const wordsTitle = this.wordsCount == 2? this.wordsTitle : this.wordsTitle.slice(0, -1);
+      this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+nl.letters+" ?", false );
     }
   } 
 
@@ -668,8 +672,9 @@ class UnscrambleGame {
           await this.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewWordsAndLetters};
           await this._channel.send(rm);
-          await this.redis.del(this.myPostId+'answeredWords');   
-          pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two " :"")+this.wordsTitle+" can you make out of "+nl.letters+" ?", this._context, this.myPostId );
+          await this.redis.del(this.myPostId+'answeredWords');
+          const wordsTitle = this.wordsCount == 2? this.wordsTitle : this.wordsTitle.slice(0, -1);
+          pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+nl.letters+" ?", this._context, this.myPostId );
           createChangeLettersThread(this._context, this.myPostId);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
         else {//add to answered words list in redis.
