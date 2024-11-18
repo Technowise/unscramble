@@ -968,7 +968,7 @@ Devvit.addCustomPostType({
           </hstack>
           <text style="body" wrap size="medium" color='black'>
             This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of {game.wordsCount} {game.wordsTitle} scrambled. Tap/click on the letters to select, and click on submit after the word is completed.
-            New set of scrambled letters are presented after both the words are solved, or after {game.minutesToSolve} minute(s).
+            New set of scrambled letters are presented after all words are solved, or after {game.minutesToSolve} minute(s).
           </text>
           <spacer size="small" />
           <hstack alignment='start middle'>
