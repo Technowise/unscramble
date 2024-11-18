@@ -1,4 +1,4 @@
-import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext, JobContext, useForm} from '@devvit/public-api';
+import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useState, useChannel, UseChannelResult, TriggerContext, JobContext, useForm} from '@devvit/public-api';
 import { usePagination } from '@devvit/kit';
 Devvit.configure({
   redditAPI: true,
@@ -100,10 +100,10 @@ Devvit.addSchedulerJob({
     const wordsTitleEdit = wordsCount == 2? wordsTitle : wordsTitle.slice(0, -1);
     pushStatusMessageGlobal("Which "+ (wordsCount == 2? "two " :"")+wordsTitleEdit+" can you make out of "+wordsAndLettersObj.letters+" ?", context, myPostId );
     await context.redis.expire(myPostId+'changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
-    
     await context.redis.expire(myPostId+'words', redisExpireTimeSeconds);
     await context.redis.expire(myPostId+'wordsTitle', redisExpireTimeSeconds);
     await context.redis.expire(myPostId+'minutesToSolve', redisExpireTimeSeconds);
+    await context.redis.expire(myPostId, redisExpireTimeSeconds);//key for leaderboard hash.
     await context.redis.del(myPostId+'answeredWords');
   },
 });
@@ -255,12 +255,12 @@ async function pushStatusMessageGlobal(message:string, context:JobContext|Contex
 }
 
 class UnscrambleGame {
+  public myPostId: string;
   private _redisKeyPrefix: string;
   private redis: RedisClient;
   private readonly _ui: UIClient;
   private _context: ContextAPIClients;
   private _currentUsername: UseStateResult<string>;
-  private _myPostId: UseStateResult<string>;
   private _wordsAndLettersObj:UseStateResult<wordsAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
@@ -271,11 +271,13 @@ class UnscrambleGame {
   private _wordsTitle: UseStateResult<string>;
   private _wordsCount: UseStateResult<number>;
   private _minutesToSolve: UseStateResult<number>;
+  private _isUserModerator: UseStateResult<boolean>;
   
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
     this._ui = context.ui;
     this.redis = context.redis;
+    this.myPostId = postId;
     this._statusMessages = context.useState(async () => {
       var messages: string[] = [];
       var smJson = await this.redis.get(postId+'statusMessages');
@@ -301,10 +303,6 @@ class UnscrambleGame {
       return 2;
     });
 
-    this._myPostId = context.useState(async () => {
-      return postId;
-    }); 
-
     this._minutesToSolve = context.useState(async () => {
       const minutes = await getMinutesToSolveFromRedis(context, this.myPostId);
       return minutes;
@@ -320,6 +318,16 @@ class UnscrambleGame {
       return currentUser?.username??'defaultUsername';
     });
 
+    this._isUserModerator = context.useState(async () => {
+      const subreddit = await this._context.reddit.getCurrentSubreddit();
+      const moderators = await subreddit.getModerators();
+      for await (const user of moderators) {
+        if(user.username == this.currentUsername ) {
+          return true;
+        }
+      }
+      return false;
+    });
 
     this._currPage = context.useState(async () => {
       return Pages.Game;
@@ -382,7 +390,7 @@ class UnscrambleGame {
         if(msg.type == PayloadType.SubmittedWord) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
-          this.pushStatusMessage(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
+          this.pushStatusMessage(pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
         }
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const nl = msg.payload as wordsAndLetters;
@@ -414,6 +422,18 @@ class UnscrambleGame {
     if( updateRedis ) {
       await this.redis.set(this.myPostId+'statusMessages', JSON.stringify(messages), {expiration: expireTime});
     }
+  }
+
+  public async deleteLeaderboardRec(username: string) {//TODO: Add confirmation dialog
+    const leaderBoardArray = this.leaderBoardRec;
+    var updatedLeaderBoardArray = this.leaderBoardRec;
+    for(var i=0; i< leaderBoardArray.length; i++ ) {
+      if( leaderBoardArray[i].username == username) {
+        updatedLeaderBoardArray.splice(i, i+1);
+      }
+    }
+    this.leaderBoardRec = updatedLeaderBoardArray;
+    await this.redis.hDel(this.myPostId, [username]);
   }
 
   public hideLeaderboardBlock() {
@@ -455,10 +475,6 @@ class UnscrambleGame {
     letters.splice(index, 1);
     ugs.userSelectedLetters = letters.join('');
     this.userGameStatus = ugs;
-  }
-
-  public get myPostId() {
-    return this._myPostId[0];
   }
 
   public get letters() {
@@ -529,6 +545,10 @@ class UnscrambleGame {
     return this._leaderBoardRec[0];
   }
 
+  public get isUserModerator() {
+    return this._isUserModerator[0];
+  }
+
   public get currPage() {
     return this._currPage[0];
   }
@@ -536,11 +556,6 @@ class UnscrambleGame {
   public set currPage(value: Pages) {
     this._currPage[0] = value;
     this._currPage[1](value);
-  }
-
-  set myPostId(value: string) {
-    this._myPostId [0] = value;
-    this._myPostId[1](value);
   }
 
   public async openIntroPage(){
@@ -644,7 +659,7 @@ class UnscrambleGame {
         await this._channel.send(rm);
         this.resetSelectedLetters();
         const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];      
-        pushStatusMessageGlobal(pl.username+" submitted the word: "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context, this.myPostId);
+        pushStatusMessageGlobal(pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, this._context, this.myPostId);
 
         an.words.push(pl);
         if( an.words.length == this.wordsAndLetters.words.length ) {//All words are already answered. Time to change the words and letters.
@@ -927,6 +942,7 @@ Devvit.addCustomPostType({
           <text style="body" size="small" color="black" width="30%" alignment="start">
             &nbsp;{row.totalWordsSolved}
           </text>
+          { game.isUserModerator ? <text size="small" color="black" onPress={() => game.deleteLeaderboardRec(row.username)} width="5%">X</text>: ""}
         </hstack>
       );
     };
