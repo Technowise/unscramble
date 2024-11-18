@@ -1,4 +1,4 @@
-import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useChannel, UseChannelResult, TriggerContext, JobContext, useForm} from '@devvit/public-api';
+import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useState, useChannel, UseChannelResult, TriggerContext, JobContext, useForm} from '@devvit/public-api';
 import { usePagination } from '@devvit/kit';
 Devvit.configure({
   redditAPI: true,
@@ -271,6 +271,7 @@ class UnscrambleGame {
   private _wordsTitle: UseStateResult<string>;
   private _wordsCount: UseStateResult<number>;
   private _minutesToSolve: UseStateResult<number>;
+  private _isUserModerator: UseStateResult<boolean>;
   
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
@@ -320,6 +321,21 @@ class UnscrambleGame {
       return currentUser?.username??'defaultUsername';
     });
 
+    this._isUserModerator = context.useState(async () => {
+      /*
+      const subreddit = await this._context.reddit.getCurrentSubreddit();
+      const moderators = await subreddit.getModerators();
+      for await (const user of moderators) {
+        //console.log(user.username);
+        if(user.username == this.currentUsername ) {
+          console.log("Yep, this user is a moderator");
+          return true;
+        }
+      }
+      console.log("Nope, this user is not a moderator");
+      */
+      return false;
+    });
 
     this._currPage = context.useState(async () => {
       return Pages.Game;
