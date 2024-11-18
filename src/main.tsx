@@ -647,20 +647,35 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         name: 'words',
         label: 'Enter comma separated list of words',
         type: 'paragraph',
-        helpText:'Comma separated list of words for the Unscramble Game'
+        helpText:'Comma separated list of words for the Unscramble Game',
+        required: true
       },
       {
         name: 'wordsTitle',
         label: 'Title for the list of words',
         type: 'string',
         helpText: 'Title for the above list of words (example: South Park character names, Javascript keywords etc.)',
+        required: true
+      },
+      {   
+        name: 'wordsCount',
+        type: 'select',
+        label: 'Number of words to scramble together at a time',
+        helpText: 'Number of words that would scrambled/jumbleed together at a time for the members to solve. This can be either 1 or 2.',
+        required: true,
+        options: [
+          { label: '2', value: '2' },
+          { label: '1', value: '1' }
+        ],
+        defaultValue:['2'],
       },
       {
         name: 'minutesToSolve',
         label: 'Minutes to solve the letters',
         type: 'number',
         helpText: 'Max number of minutes allowed to solve each set of scrambled/jumbled letters.',
-        defaultValue: 3
+        defaultValue: 3,
+        required: true
       },
       {
         type: 'select',
