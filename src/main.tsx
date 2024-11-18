@@ -79,7 +79,7 @@ Devvit.addSchedulerJob({
     var myPostId = event.data!.postId as string;
     console.log("running change_letters_job for post: "+myPostId);
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
-    await context.realtime.send('events', rms);
+    await context.realtime.send(myPostId+'events', rms);
     const wordsTitle = await getWordsTitleFromRedis(context, myPostId);
 
     //Get old words and letters from redis.
@@ -93,7 +93,7 @@ Devvit.addSchedulerJob({
     const wordsAndLettersObj:wordsAndLetters = await getRandomWordsAndLetters(context, myPostId);
     await context.redis.set(myPostId+'wordsAndLetters',  JSON.stringify(wordsAndLettersObj), {expiration: expireTime});
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
-    await context.realtime.send('events', rm);
+    await context.realtime.send(myPostId+'events', rm);
     pushStatusMessageGlobal("Which two "+wordsTitle+" can you make out of "+wordsAndLettersObj.letters.toUpperCase()+" ?", context, myPostId );
     await context.redis.expire(myPostId+'changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
     
@@ -345,7 +345,7 @@ class UnscrambleGame {
     });
 
     this._channel = useChannel<RealtimeMessage>({
-      name: 'events',
+      name: this.myPostId+'events',
       onMessage: (msg) => {
         const payload = msg.payload;
 
