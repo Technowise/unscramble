@@ -1,4 +1,4 @@
-import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useState, useChannel, UseChannelResult, TriggerContext, JobContext, useForm} from '@devvit/public-api';
+import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useInterval, useChannel, UseChannelResult, TriggerContext, JobContext, useForm, UseIntervalResult} from '@devvit/public-api';
 import { usePagination } from '@devvit/kit';
 Devvit.configure({
   redditAPI: true,
@@ -237,7 +237,11 @@ async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClient
    wordsSet.push(words[word2index].toUpperCase());
   }
 
-  var shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
+  var shuffledLetters = allLetters;
+  while( shuffledLetters == allLetters){//Only loop out when letters are not same as original letters.
+    shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
+  }
+
   let dateNow = new Date();
   const milliseconds = lettersExpireTimeSeconds * 1000;
   var lettersExpireTimeMillis = dateNow.getTime();
@@ -277,6 +281,7 @@ class UnscrambleGame {
   private _wordsCount: UseStateResult<number>;
   private _minutesToSolve: UseStateResult<number>;
   private _currentUserInfo: UseStateResult<CurrentUserInfo>;
+  private _counterInterval: UseIntervalResult;
 
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
@@ -412,7 +417,15 @@ class UnscrambleGame {
         }
       },
     });
+    this._counterInterval = useInterval(() => {
+      const ugs = this.userGameStatus;
+      if( ugs.remainingTimeInSeconds > 0 ) {
+        ugs.remainingTimeInSeconds = ugs.remainingTimeInSeconds - 1;
+      }
+      this.userGameStatus = ugs;
+    }, 1000);
 
+    this._counterInterval.start();
     this._channel.subscribe();
   }
 
@@ -838,7 +851,12 @@ Devvit.addCustomPostType({
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack>
-        <text size="medium" weight='bold' color={textColour}>Selected letters:</text>
+        <hstack alignment="center middle" width="100%">
+          <text size="medium" weight='bold' color={textColour}>Selected Letters</text>
+          <spacer grow />
+          <text size="medium" weight='bold' color={textColour} width="144px">Time Remaining: {Math.trunc(game.userGameStatus.remainingTimeInSeconds)}</text>
+        </hstack>
+
         <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="85px" >
           
           {game.userGameStatus.userSelectedLetters.length == 0 ? <text size="medium" color={textColour} height="30px">None</text>: ""}
