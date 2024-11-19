@@ -25,6 +25,12 @@ type UserGameState = {
   totalWordsSolved: number;
 }
 
+type CurrentUserInfo = {
+  username: string;
+  isUserModerator: boolean;
+  isUserBanned: boolean;
+}
+
 type UserSubmittedWord = {
   word: string;
   username: string;
@@ -260,7 +266,6 @@ class UnscrambleGame {
   private redis: RedisClient;
   private readonly _ui: UIClient;
   private _context: ContextAPIClients;
-  private _currentUsername: UseStateResult<string>;
   private _wordsAndLettersObj:UseStateResult<wordsAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
@@ -271,8 +276,8 @@ class UnscrambleGame {
   private _wordsTitle: UseStateResult<string>;
   private _wordsCount: UseStateResult<number>;
   private _minutesToSolve: UseStateResult<number>;
-  private _isUserModerator: UseStateResult<boolean>;
-  
+  private _currentUserInfo: UseStateResult<CurrentUserInfo>;
+
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
     this._ui = context.ui;
@@ -313,27 +318,26 @@ class UnscrambleGame {
       return words;
     });
 
-    this._currentUsername = context.useState(async () => {
+    this._currentUserInfo = context.useState(async () => {
       const currentUser = await context.reddit.getCurrentUser();
-      return currentUser?.username??'defaultUsername';
-    });
-
-    this._isUserModerator = context.useState(async () => {
+      const username = currentUser?.username??'defaultUsername';
+      var userInfo:CurrentUserInfo = {username:username, isUserBanned:false, isUserModerator: false};
+      //TODO: FInd simple/quick way to determine if user is banned from subreddit and set the value of isUserBanned accordingly.
       const subreddit = await this._context.reddit.getCurrentSubreddit();
-      const moderators = await subreddit.getModerators();
+      const moderators = subreddit.getModerators();
       for await (const user of moderators) {
-        if(user.username == this.currentUsername ) {
-          return true;
+        if( user.username == username ) {
+          userInfo.isUserModerator = true;
         }
       }
-      return false;
+      return userInfo;
     });
 
     this._currPage = context.useState(async () => {
       return Pages.Game;
     });
 
-    this._redisKeyPrefix = this.myPostId + this.currentUsername;
+    this._redisKeyPrefix = this.myPostId + this.currentUserInfo.username;
 
     this._wordsAndLettersObj = context.useState<wordsAndLetters>(
       async() =>{
@@ -367,7 +371,7 @@ class UnscrambleGame {
         for (const key in previousLeaderBoard) {
           const redisLBObj = JSON.parse(previousLeaderBoard[key]);
           if( redisLBObj.username ) {
-            if(redisLBObj.username == this.currentUsername) {
+            if(redisLBObj.username == this.currentUserInfo.username) {
               const usg = this._userGameStatus[0];
               usg.totalWordsSolved = redisLBObj.totalWordsSolved;
               this.userGameStatus = usg;
@@ -514,8 +518,8 @@ class UnscrambleGame {
     return this._redisKeyPrefix;
   }
 
-  public get currentUsername() {
-    return this._currentUsername[0];
+  public get currentUserInfo() {
+    return this._currentUserInfo[0];
   }
 
   public get wordsAndLetters() {
@@ -543,10 +547,6 @@ class UnscrambleGame {
 
   public get leaderBoardRec() {
     return this._leaderBoardRec[0];
-  }
-
-  public get isUserModerator() {
-    return this._isUserModerator[0];
   }
 
   public get currPage() {
@@ -636,8 +636,8 @@ class UnscrambleGame {
         const ugs = this.userGameStatus;    
         ugs.totalWordsSolved = ugs.totalWordsSolved + 1;
         const leaderBoardArray = this.leaderBoardRec;
-        const leaderBoardObj:leaderBoard  = { username:this.currentUsername, totalWordsSolved: this.userGameStatus.totalWordsSolved};
-        var foundIndex = leaderBoardArray.findIndex(x => x.username == this.currentUsername);
+        const leaderBoardObj:leaderBoard  = { username:this.currentUserInfo.username, totalWordsSolved: this.userGameStatus.totalWordsSolved};
+        var foundIndex = leaderBoardArray.findIndex(x => x.username == this.currentUserInfo.username);
 
         if( foundIndex >= 0 ) {//Update in place
           leaderBoardArray[foundIndex] = leaderBoardObj;
@@ -648,13 +648,13 @@ class UnscrambleGame {
 
         leaderBoardArray.sort((a, b) =>  b.totalWordsSolved - a.totalWordsSolved);
         this.leaderBoardRec = leaderBoardArray;
-        await this.redis.hSet(this.myPostId, { [this.currentUsername]: JSON.stringify(leaderBoardObj) });
+        await this.redis.hSet(this.myPostId, { [this.currentUserInfo.username]: JSON.stringify(leaderBoardObj) });
         await this.redis.expire(this.myPostId, redisExpireTimeSeconds);
         this.userGameStatus = ugs;
       }
 
       if( ! isStale && !alreadyAnswered  ) {
-        const pl:UserSubmittedWord = { word:this.userGameStatus.userSelectedLetters, username: this.currentUsername};
+        const pl:UserSubmittedWord = { word:this.userGameStatus.userSelectedLetters, username: this.currentUserInfo.username};
         const rm: RealtimeMessage = { payload: pl, type: PayloadType.SubmittedWord};
         await this._channel.send(rm);
         this.resetSelectedLetters();
@@ -942,7 +942,7 @@ Devvit.addCustomPostType({
           <text style="body" size="small" color="black" width="30%" alignment="start">
             &nbsp;{row.totalWordsSolved}
           </text>
-          { game.isUserModerator ? <text size="small" color="black" onPress={() => game.deleteLeaderboardRec(row.username)} width="5%">X</text>: ""}
+          { game.currentUserInfo.isUserModerator ? <text size="small" color="black" onPress={() => game.deleteLeaderboardRec(row.username)} width="5%">X</text>: ""}
         </hstack>
       );
     };
