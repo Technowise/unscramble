@@ -854,7 +854,7 @@ Devvit.addCustomPostType({
         <hstack alignment="center middle" width="100%">
           <text size="medium" weight='bold' color={textColour}>Selected Letters</text>
           <spacer grow />
-          <text size="medium" weight='bold' color={textColour} width="144px">Time Remaining: {Math.trunc(game.userGameStatus.remainingTimeInSeconds)}</text>
+          <text size="medium" weight='bold' color={textColour} width="145px">🕒 Remaining: {Math.trunc(game.userGameStatus.remainingTimeInSeconds)}</text>
         </hstack>
 
         <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="85px" >
