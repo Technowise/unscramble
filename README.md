@@ -28,4 +28,4 @@ Leaderboard contains the list of usernames, and the number of words they have so
 ## Links
 ### Demo
 You can try out this game by going here:
-https://www.reddit.com/r/UnscrambleGame/
+[https://www.reddit.com/r/UnscrambleGame/](https://www.reddit.com/r/UnscrambleGame/)

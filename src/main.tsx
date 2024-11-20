@@ -695,7 +695,7 @@ class UnscrambleGame {
     }
     else {
       this._context.ui.showToast({
-        text: "Sorry, that's not a correct!",
+        text: "Sorry, that's not correct!",
         appearance: 'neutral',
       });      
     }
@@ -851,10 +851,10 @@ Devvit.addCustomPostType({
 
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack>
-        <hstack alignment="center middle" width="100%">
+        <hstack alignment="center middle" width="100%"  height="30px" min-height="30px">
           <text size="medium" weight='bold' color={textColour}>Selected Letters</text>
           <spacer grow />
-          <text size="medium" weight='bold' color={textColour} width="145px">🕒 Remaining: {Math.trunc(game.userGameStatus.remainingTimeInSeconds)}</text>
+          <text size="medium" weight='bold' color={textColour} width="90px">🕒 left: {Math.trunc(game.userGameStatus.remainingTimeInSeconds)}</text>
         </hstack>
 
         <vstack alignment="start middle" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="85px" >
@@ -876,8 +876,8 @@ Devvit.addCustomPostType({
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center middle" border='none'>
-        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="45px" wrap>
-          Tap/click letters below to make {game.wordsTitle}
+        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="40px" wrap>
+          Select letters below to make a word:
         </text>
         <spacer size="xsmall" />
 
