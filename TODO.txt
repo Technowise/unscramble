@@ -1,3 +1,12 @@
+
+pl00h feeback:
+
+"In the future, you may benefit from:
+using webviews
+giving non-mods post creation access. Posting the guess as a comment with spoiler treatment would allow you to ensure words are moderated OR you could use a dictionary of words
+"
+
+
 Give a hint to solve (like the word starts with letter X) after a minute has passed.
 
 Add postId into all redis keys so that they do not collide with other posts.

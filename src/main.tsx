@@ -910,8 +910,8 @@ Devvit.addCustomPostType({
     );
     
     const LeaderBoardBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack width="344px" height="94%" backgroundColor="transparent" alignment="center middle">
-        <vstack  width="96%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
+      <vstack width="344px" height="100%" backgroundColor="transparent" alignment="center middle">
+        <vstack width="97%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
           <hstack padding="small" alignment="middle center" width="100%">
             <text style="heading" size="large" weight='bold' alignment="middle center" color='black'>
                 Leaderboard
@@ -966,39 +966,41 @@ Devvit.addCustomPostType({
     };
 
     const HelpBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack  width="344px" height="94%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
-        <hstack padding="small" width="100%">
-          <text style="heading" size="large" weight='bold' alignment="middle center" width="100%" color='black'>
-              Help 
-          </text>
-        </hstack>
-        <vstack height="82%" width="100%" padding="medium">
-          <spacer size="small" />
-          <hstack alignment='start middle'>
-            <icon name="search" size="xsmall" color='black'></icon>
-            <text style="heading" size="medium" color='black'>
-              &nbsp; How to play {gameTitle}
+      <vstack width="344px" height="100%" backgroundColor="transparent" alignment="center middle">
+        <vstack  width="97%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
+          <hstack padding="small" width="100%">
+            <text style="heading" size="large" weight='bold' alignment="middle center" width="100%" color='black'>
+                Help 
             </text>
           </hstack>
-          <text style="body" wrap size="medium" color='black'>
-            This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of {game.wordsCount} {game.wordsTitle} scrambled. Tap/click on the letters to select, and click on submit after the word is completed.
-            New set of scrambled letters are presented after all words are solved, or after {game.minutesToSolve} minute(s).
-          </text>
-          <spacer size="small" />
-          <hstack alignment='start middle'>
-            <icon name="list-numbered" size="xsmall" color='black'></icon>
-            <text style="heading" size="medium" color='black'>
-              &nbsp; View leaderboard.
+          <vstack height="82%" width="100%" padding="medium">
+            <spacer size="small" />
+            <hstack alignment='start middle'>
+              <icon name="search" size="xsmall" color='black'></icon>
+              <text style="heading" size="medium" color='black'>
+                &nbsp; How to play {gameTitle}
+              </text>
+            </hstack>
+            <text style="body" wrap size="medium" color='black'>
+              This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of {game.wordsCount} {game.wordsTitle} scrambled. Tap/click on the letters to select, and click on submit after the word is completed.
+              New set of scrambled letters are presented after all words are solved, or after {game.minutesToSolve} minute(s).
             </text>
+            <spacer size="small" />
+            <hstack alignment='start middle'>
+              <icon name="list-numbered" size="xsmall" color='black'></icon>
+              <text style="heading" size="medium" color='black'>
+                &nbsp; View leaderboard.
+              </text>
+            </hstack>
+            <text style="body" wrap size="medium" color='black'>
+              You can view how many words each participant has solved by clicking on `Leaderboard` button.
+            </text> 
+            <spacer size="small" />
+          </vstack>
+          <hstack alignment="bottom center" width="100%" height="8%">
+            <button size="small" icon='close' onPress={() => game.hideHelpBlock()}>Close</button>
           </hstack>
-          <text style="body" wrap size="medium" color='black'>
-            You can view how many words each participant has solved by clicking on `Leaderboard` button.
-          </text> 
-          <spacer size="small" />
         </vstack>
-        <hstack alignment="bottom center" width="100%" height="8%">
-          <button size="small" icon='close' onPress={() => game.hideHelpBlock()}>Close</button>
-        </hstack>
       </vstack>
     );
 
@@ -1011,13 +1013,16 @@ Devvit.addCustomPostType({
     <blocks height="tall">
       <vstack alignment="center middle" width="100%" height="100%">
         <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' borderColor='#395654' cornerRadius="small">
-          {cp[game.currPage]}
-          <spacer size="xsmall" />
+          <vstack height="96%" min-height="96%">
+            {cp[game.currPage]}
+          </vstack>
+          
           <hstack alignment="center middle" width="100%">
             <button size="small" icon='list-numbered' onPress={() => game.showLeaderboardBlock()}>Leaderboard</button> 
             <spacer size="small" />
             <button size="small" icon='help'  onPress={() => game.showHelpBlock()}>Help</button>
           </hstack>
+          <spacer size="xsmall" />
         </vstack>
       </vstack>
     </blocks>
