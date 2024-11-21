@@ -1,3 +1,19 @@
+Make announcement about the game in other subreddits.
+
+specifically: 
+https://www.reddit.com/r/wordgames/
+https://www.reddit.com/r/GameDevelopersOfIndia/
+https://www.reddit.com/r/developersIndia/
+https://www.reddit.com/r/IndianGaming/
+https://www.reddit.com/r/webdev/
+
+I will add option for automatic expiration in the next version. - /u/Mlakuss
+
+I will add a button to scramble letters in the next version.- /u/Mlakuss
+
+add an option for mods to edit letters and words? We would like to have it on the Croatian sub. - /u/paskatulas
+
+
 
 pl00h feeback:
 

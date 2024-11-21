@@ -476,6 +476,18 @@ class UnscrambleGame {
     this.userGameStatus = ugs;
   }
 
+  public shuffleLetters() {
+    var ugs = this.userGameStatus;
+    ugs.userLetters = this.wordsAndLetters.letters;
+    ugs.userSelectedLetters = "";
+
+    while( ugs.userLetters == this.wordsAndLetters.letters){//Only loop out when letters are not same as original letters.
+      ugs.userLetters = this.wordsAndLetters.letters.split('').sort(function(){return 0.5-Math.random()}).join('');
+    }
+  
+    this.userGameStatus = ugs;
+  }
+  
   public addLetterToSelected(index:number) {
     var ugs:UserGameState = this.userGameStatus;
     ugs.userSelectedLetters = ugs.userSelectedLetters + ugs.userLetters[index];
@@ -868,6 +880,7 @@ Devvit.addCustomPostType({
           <spacer size="small" />
           <hstack alignment="center middle" width="100%">
             <button size="small" icon='approve' onPress={() => game.verifyWord()}>Submit</button> <spacer size="small" />
+            <button size="small" icon='random' onPress={() => game.shuffleLetters()}>Shuffle</button> <spacer size="small" />
             <button size="small" icon='undo' onPress={() => game.resetSelectedLetters()}>Reset</button>
           </hstack>
         </vstack>
