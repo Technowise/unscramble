@@ -570,6 +570,11 @@ class UnscrambleGame {
     this._leaderBoardRec[1](value);
   }
 
+  public set allWords(value: string[]) {
+    this._allWords[0] = value;
+    this._allWords[1](value);
+  }
+
   public get leaderBoardRec() {
     return this._leaderBoardRec[0];
   }
@@ -748,10 +753,18 @@ const wordsInputForm = Devvit.createForm(  (data) => {
       },
       {
         name: 'minutesToSolve',
-        label: 'Minutes to solve the letters',
+        label: 'Minutes to solve each set of letters',
         type: 'number',
         helpText: 'Max number of minutes allowed to solve each set of scrambled/jumbled letters.',
         defaultValue: 3,
+        required: true
+      },
+      {
+        name: 'totalGameDurationHours',
+        label: 'Total game duragin  in hours',
+        type: 'number',
+        helpText: 'Total game duration in hours, after which it would be archived and the leaderboard entries would be freezed.',
+        defaultValue: 24,
         required: true
       },
       {
@@ -840,6 +853,31 @@ Devvit.addCustomPostType({
     const game = new UnscrambleGame(_context, myPostId);
     const {currentPage, currentItems, toNextPage, toPrevPage} = usePagination(_context, game.leaderBoardRec, leaderBoardPageSize);
     let cp: JSX.Element[];
+
+    const updateWordsForm = useForm(
+      {
+        title : `Update ${gameTitle} words`,
+        description:"Please provide comma separated list of words for the game",
+        acceptLabel: "Submit",
+        fields: [
+          {
+            type: 'paragraph',
+            name: 'words',
+            label: 'Enter your words',
+            defaultValue: game.allWords.join(", "),
+          },
+        ],
+      },
+      async (values) => {
+        await _context.redis.set(game.myPostId+'words', values.words);
+        console.log("Setting "+game.myPostId+'words'+" with value: "+values.words)
+        var wordsArray = values.words.split(",").map(function (value) {
+          return value.trim();
+       });
+        game.allWords = wordsArray;
+        //TODO: Publish message for other clients to receive/fetch the updated words.
+      }
+    );
 
     const openUserPage = async (username: string) => {
       _context.ui.navigateTo(`https://www.reddit.com/user/${username}/`);
@@ -1034,6 +1072,8 @@ Devvit.addCustomPostType({
             <button size="small" icon='list-numbered' onPress={() => game.showLeaderboardBlock()}>Leaderboard</button> 
             <spacer size="small" />
             <button size="small" icon='help'  onPress={() => game.showHelpBlock()}>Help</button>
+            <spacer size="small" />         
+            { game.currentUserInfo.isUserModerator? <button size="small" icon='settings'  onPress={() => _context.ui.showForm(updateWordsForm)}></button>:"" }
           </hstack>
           <spacer size="xsmall" />
         </vstack>
