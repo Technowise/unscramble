@@ -9,9 +9,9 @@ https://www.reddit.com/r/webdev/
 
 I will add option for automatic expiration in the next version. - /u/Mlakuss
 
-I will add a button to scramble letters in the next version.- /u/Mlakuss
+I will add a button to scramble letters in the next version.- /u/Mlakuss - Done.
 
-add an option for mods to edit letters and words? We would like to have it on the Croatian sub. - /u/paskatulas
+add an option for mods to edit letters and words? We would like to have it on the Croatian sub. - /u/paskatulas - Done.
 
 
 

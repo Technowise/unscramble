@@ -9,7 +9,8 @@ Devvit.configure({
 enum PayloadType {
   SubmittedWord,
   NewWordsAndLetters,
-  TriggerShowAnswer
+  TriggerShowAnswer,
+  TriggerRefreshWOrds
 }
 
 type wordsAndLetters = {
@@ -415,6 +416,9 @@ class UnscrambleGame {
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
           this.pushStatusMessage("Answer: "+ this.wordsAndLetters.words.join(", "), false );          
         }
+        else if  (msg.type == PayloadType.TriggerRefreshWOrds) {
+          this.refreshWords();       
+        }
       },
     });
     this._counterInterval = useInterval(() => {
@@ -487,6 +491,10 @@ class UnscrambleGame {
   
     this.userGameStatus = ugs;
   }
+
+  public async refreshWords() {
+    this.allWords = await getWordsFromRedis(this._context, this.myPostId);
+  };
   
   public addLetterToSelected(index:number) {
     var ugs:UserGameState = this.userGameStatus;
@@ -875,7 +883,8 @@ Devvit.addCustomPostType({
           return value.trim();
        });
         game.allWords = wordsArray;
-        //TODO: Publish message for other clients to receive/fetch the updated words.
+        const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerRefreshWOrds};
+        await _context.realtime.send(myPostId+'events', rms);
       }
     );
 
