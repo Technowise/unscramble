@@ -1,5 +1,7 @@
 Make announcement about the game in other subreddits.
 
+Make title editable in the next version.
+
 specifically: 
 https://www.reddit.com/r/wordgames/
 https://www.reddit.com/r/GameDevelopersOfIndia/

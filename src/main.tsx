@@ -271,6 +271,7 @@ class UnscrambleGame {
   private redis: RedisClient;
   private readonly _ui: UIClient;
   private _context: ContextAPIClients;
+  private _gameExpireTimeStamp: UseStateResult<number>;
   private _wordsAndLettersObj:UseStateResult<wordsAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
@@ -289,6 +290,7 @@ class UnscrambleGame {
     this._ui = context.ui;
     this.redis = context.redis;
     this.myPostId = postId;
+    
     this._statusMessages = context.useState(async () => {
       var messages: string[] = [];
       var smJson = await this.redis.get(postId+'statusMessages');
@@ -296,6 +298,16 @@ class UnscrambleGame {
         messages = JSON.parse(smJson);
       }
       return messages;
+    });
+
+    this._gameExpireTimeStamp = context.useState(async () => {
+      const post = await context.reddit.getPostById(postId);
+      const totalDurationHours = await this._context.redis.get(this.myPostId+'totalGameDurationHours');
+      if( totalDurationHours && totalDurationHours.length  > 0 ) {
+        const totalDurationHoursInt = parseInt(totalDurationHours);
+         return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
+      }
+      return 0;//Return zero to indicate that there is no total duration available.
     });
 
     this._wordsTitle = context.useState(async () => {
@@ -348,7 +360,7 @@ class UnscrambleGame {
     this._wordsAndLettersObj = context.useState<wordsAndLetters>(
       async() =>{
         const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
-        if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
+        if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {
           const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
           const nl = wordsAndLettersObj as wordsAndLetters;
           return nl;
@@ -512,6 +524,10 @@ class UnscrambleGame {
     letters.splice(index, 1);
     ugs.userSelectedLetters = letters.join('');
     this.userGameStatus = ugs;
+  }
+
+  public get gameExpireTime()  {
+    return new Date(this._gameExpireTimeStamp[0]);
   }
 
   public get letters() {
@@ -769,9 +785,9 @@ const wordsInputForm = Devvit.createForm(  (data) => {
       },
       {
         name: 'totalGameDurationHours',
-        label: 'Total game duragin  in hours',
+        label: 'Total game duration in hours',
         type: 'number',
-        helpText: 'Total game duration in hours, after which it would be archived and the leaderboard entries would be freezed.',
+        helpText: 'Total game duration in hours, after which the leaderboard entries would be freezed.',
         defaultValue: 24,
         required: true
       },
@@ -792,6 +808,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const submittedWords = event.values.words.toUpperCase();
     const submittedWordsTitle = event.values.wordsTitle;
     const minutesToSolve = event.values.minutesToSolve;
+    const totalGameDurationHours = event.values.totalGameDurationHours;
     const wordsCount = event.values.wordsCount[0];
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
@@ -825,6 +842,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
   await redis.set(postId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
   await redis.set(postId+'wordsCount', wordsCount, {expiration: expireTime});
   await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
+  await redis.set(postId+'totalGameDurationHours', totalGameDurationHours.toString(), {expiration: expireTime});
 
   ui.showToast({
     text: `Successfully created an ${gameTitle} post!`,
@@ -858,6 +876,7 @@ Devvit.addCustomPostType({
   height: 'tall',
   render: (_context) => {
     const myPostId = _context.postId ?? 'defaultPostId';
+
     const game = new UnscrambleGame(_context, myPostId);
     const {currentPage, currentItems, toNextPage, toPrevPage} = usePagination(_context, game.leaderBoardRec, leaderBoardPageSize);
     let cp: JSX.Element[];
@@ -936,7 +955,10 @@ Devvit.addCustomPostType({
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center middle" border='none'>
-        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="40px" wrap>
+        <text style="body" size="medium" weight='bold' alignment="center middle" color={textColour} width="330px" height="20px" wrap>
+          Game ends at: {game.gameExpireTime.toString()}
+        </text>
+        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="20px" wrap>
           Select letters below to make a word:
         </text>
         <spacer size="xsmall" />
