@@ -57,7 +57,8 @@ type leaderBoard = {
 export enum Pages {
   Game,
   LeaderBoard,
-  Help
+  Help,
+  GameEnd
 }
 
 function splitArray<T>(array: T[], segmentLength: number): T[][] {
@@ -116,12 +117,9 @@ Devvit.addSchedulerJob({
 });
 
 async function createChangeLettersThread(context:TriggerContext| ContextAPIClients, postId:string) {
+
+  await cancelChangeLettersJob(context, postId);
   const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
-  const oldJobId = await context.redis.get(postId+'changeLettersJobId');
-  
-  if( oldJobId && oldJobId.length > 0 ) {
-    await context.scheduler.cancelJob(oldJobId);
-  }
 
   try {
     const jobId = await context.scheduler.runJob({
@@ -169,14 +167,19 @@ Devvit.addTrigger({
   onEvent: async ( event, context) => {
     const postId = event.postId?? "";
     if ( await isPostCreatedByCurrentApp(context, postId) ) {
-      const oldJobId = await context.redis.get(postId+'changeLettersJobId');
-      if( oldJobId && oldJobId.length > 0 ) {
-        await context.scheduler.cancelJob(oldJobId);
-        console.log("Deleted scheduled job since the post("+postId+") was deleted.");
-      }
+      await cancelChangeLettersJob(context, postId);
     }
   },
 });
+
+async function cancelChangeLettersJob(context:TriggerContext| ContextAPIClients, postId:string ){
+  const oldJobId = await context.redis.get(postId+'changeLettersJobId');
+  if( oldJobId && oldJobId.length > 0 ) {
+    await context.scheduler.cancelJob(oldJobId);
+    console.log("Deleted scheduled job for the post("+postId+")");
+    await context.redis.del(postId+'changeLettersJobId');
+  }
+}
 
 async function getWordsFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
   const wordsStr = await context.redis.get(postId+'words');
@@ -305,7 +308,8 @@ class UnscrambleGame {
       const totalDurationHours = await this._context.redis.get(this.myPostId+'totalGameDurationHours');
       if( totalDurationHours && totalDurationHours.length  > 0 ) {
         const totalDurationHoursInt = parseInt(totalDurationHours);
-         return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
+        //return post.createdAt.getTime() + 300000; //Temporarily expire game after 5 mins for testing.
+        return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
       }
       return 0;//Return zero to indicate that there is no total duration available.
     });
@@ -352,7 +356,10 @@ class UnscrambleGame {
     });
 
     this._currPage = context.useState(async () => {
-      return Pages.Game;
+      if( this.gameExpireTime < new Date() ) {
+        await cancelChangeLettersJob(this._context, this.myPostId);
+      }
+      return this.getHomePage()
     });
 
     this._redisKeyPrefix = this.myPostId + this.currentUserInfo.username;
@@ -469,8 +476,18 @@ class UnscrambleGame {
     await this.redis.hDel(this.myPostId, [username]);
   }
 
+
+  public getHomePage() {
+    if( this.gameExpireTime > new Date() ) {
+      return Pages.Game;
+    }
+    else {
+      return Pages.GameEnd;
+    }
+  }
+  
   public hideLeaderboardBlock() {
-    this.currPage = Pages.Game;
+    this.currPage = this.getHomePage();
   }
 
   public showLeaderboardBlock() {
@@ -482,7 +499,7 @@ class UnscrambleGame {
   }
 
   public hideHelpBlock() {
-    this.currPage = Pages.Game;
+    this.currPage = this.getHomePage();
   }
 
   public resetSelectedLetters() {
@@ -954,23 +971,23 @@ Devvit.addCustomPostType({
       );
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack alignment="center middle" border='none'>
-        <text style="body" size="medium" weight='bold' alignment="center middle" color={textColour} width="330px" height="20px" wrap>
+      <vstack alignment="center top">
+        <text style="body" size="medium" alignment="center middle" color="#7fa78c" width="330px" height="18px" wrap>
           Game ends at: {game.gameExpireTime.toString()}
         </text>
-        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="20px" wrap>
+        <spacer size="xsmall" />
+        <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="18px" wrap>
           Select letters below to make a word:
         </text>
         <spacer size="xsmall" />
 
-        <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='small' minHeight="80px">
+        <vstack alignment="top start" width="312px" border="thin" borderColor={borderColour} padding='xsmall' minHeight="75px">
           {splitArray(letterCells, 10).map((row) => ( <>
             <hstack>{row}</hstack>
             <spacer size="xsmall" />
           </>
           ))}
         </vstack>
-        <spacer size="xsmall" />
         <SelectedLettersBlock game={game} />
 
         <spacer size="small" />  
@@ -1086,20 +1103,56 @@ Devvit.addCustomPostType({
       </vstack>
     );
 
+    const GameEndBlock = ({ game }: { game: UnscrambleGame }) => (
+      <vstack width="344px" height="100%" backgroundColor="transparent" alignment="center middle">
+        <vstack  width="97%" height="100%" alignment="top start" backgroundColor='white' borderColor='black' border="thick" cornerRadius="small">
+          <hstack padding="small" width="100%">
+            <text style="heading" size="large" weight='bold' alignment="middle center" width="100%" color='black'>
+                This Unscramble Game has ended. 
+            </text>
+          </hstack>
+          <vstack height="82%" width="100%" padding="medium">
+            <spacer size="small" />
+            <hstack alignment='start middle'>
+              <text style="heading" size="medium" color='black'>
+                Below were the words in the set
+              </text>
+            </hstack>
+            <text style="body" wrap size="medium" color='black'>
+              {game.allWords.join(", ")}
+            </text>
+            <spacer size="small" />
+            <hstack alignment='start middle'>
+              <icon name="list-numbered" size="xsmall" color='black'></icon>
+              <text style="heading" size="medium" color='black'>
+                &nbsp;View leaderboard.
+              </text>
+            </hstack>
+            <text style="body" wrap size="medium" color='black'>
+              Check out the leaderboard for scores.
+            </text> 
+            <spacer size="small" />
+          </vstack>
+        </vstack>
+      </vstack>
+    );
+
+
     cp = [ <GameBlock game={game} />,
       <LeaderBoardBlock game={game} />,
       <HelpBlock game={game} />,
+      <GameEndBlock game={game} />,
      ];
 
     return (
     <blocks height="tall">
-      <vstack alignment="center middle" width="100%" height="100%">
-        <vstack height="100%" width="344px" alignment="center top" padding="medium" backgroundColor='#395654' borderColor='#395654' cornerRadius="small">
-          <vstack height="96%" min-height="96%">
+      <vstack alignment="center top" width="100%" height="100%">
+        <vstack height="100%" width="344px" alignment="center top" padding="xsmall" backgroundColor='#395654' cornerRadius="small">
+          <vstack height="90%" min-height="90%">
             {cp[game.currPage]}
           </vstack>
           
-          <hstack alignment="center middle" width="100%">
+          <hstack alignment="center middle" width="100%" height="10%">
             <button size="small" icon='list-numbered' onPress={() => game.showLeaderboardBlock()}>Leaderboard</button> 
             <spacer size="small" />
             <button size="small" icon='help'  onPress={() => game.showHelpBlock()}>Help</button>
