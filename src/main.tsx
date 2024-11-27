@@ -77,7 +77,8 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
 const MaxMessagesCount = 5;
 const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
-const redisExpireTimeSeconds = 2592000;//30 days in seconds.
+//const redisExpireTimeSeconds = 2592000;//30 days in seconds.
+const redisExpireTimeSeconds = 300;//Temporarily set to 5 mins for testing.
 
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -232,20 +233,18 @@ async function getLeaderboardRecords(context:TriggerContext| ContextAPIClients, 
     return leaderBoardRecords;
   }
   else {//try to get leaderbard records from the archive in comment.
-    
     const redditPostComments = await getRedditPostComments(context, postId);
-    if( redditPostComments.length > 0 ) {
-      let metaCommentObj = redditPostComments.find(i => i.authorName === 'unscramble-game');
-      if( metaCommentObj ) {
-
+    for( var i=0; i<redditPostComments.length; i++ ) {
+      if( redditPostComments[i].authorName == 'unscramble-game' && redditPostComments[i].body.includes("\"leaderboard\"") ) {
         try {
-          var pa = JSON.parse(metaCommentObj.body); 
+          var pa = JSON.parse(redditPostComments[i].body);
           const postArchive = pa as postArchive;
+          console.log("Retrieved leaderboard records from comment json");
           return postArchive.leaderboard;
         } catch (e) {
-          return [];
+          console.log(e);
+          continue;//Skip current entry and try next.
         }
-
       }
     }
   }
@@ -283,10 +282,11 @@ async function getWords(context:TriggerContext| ContextAPIClients, postId:string
   }
   else {//get words from the archive in comment.
     const redditPostComments = await getRedditPostComments(context, postId);
-      let metaCommentObj = redditPostComments.find(i => i.authorName === 'unscramble-game');
+      let metaCommentObj = redditPostComments.find(i => i.authorName === 'unscramble-game' && i.body.includes("\"leaderboard\"") );
       if( metaCommentObj ) {
         var pa = JSON.parse(metaCommentObj.body); 
         const postArchive = pa as postArchive;
+        console.log("Retreived words from comment archive");
         return postArchive.words;
       }
   }
@@ -974,7 +974,6 @@ const wordsInputForm = Devvit.createForm(  (data) => {
 Devvit.addMenuItem({
   label: `Create ${gameTitle} post`,
   location: 'subreddit',
-  forUserType: 'moderator',
   onPress: async (_, context) => {
     await showCreatePostForm(context);
   },
@@ -1017,7 +1016,6 @@ Devvit.addCustomPostType({
       },
       async (values) => {
         await _context.redis.set(game.myPostId+'words', values.words);
-        console.log("Setting "+game.myPostId+'words'+" with value: "+values.words)
         var wordsArray = values.words.split(",").map(function (value) {
           return value.trim();
        });
