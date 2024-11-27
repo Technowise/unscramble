@@ -89,7 +89,7 @@ Devvit.addSchedulerJob({
     console.log("running change_letters_job for post: "+myPostId);
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send(myPostId+'events', rms);
-    const wordsTitle = await getWordsTitleFromRedis(context, myPostId);
+    const title = await getTitleFromRedis(context, myPostId);
     const wordsCount = await getWordsCountFromRedis(context, myPostId);
 
     //Get old words and letters from redis.
@@ -105,11 +105,10 @@ Devvit.addSchedulerJob({
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
     await context.realtime.send(myPostId+'events', rm);
 
-    const wordsTitleEdit = wordsCount == 2? wordsTitle : wordsTitle.slice(0, -1);
-    pushStatusMessageGlobal("Which "+ (wordsCount == 2? "two " :"")+wordsTitleEdit+" can you make out of "+wordsAndLettersObj.letters+" ?", context, myPostId );
+    pushStatusMessageGlobal("Which "+ (wordsCount == 2? "two words" :"word")+" can you make out of "+wordsAndLettersObj.letters+" ?", context, myPostId );
     await context.redis.expire(myPostId+'changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
     await context.redis.expire(myPostId+'words', redisExpireTimeSeconds);
-    await context.redis.expire(myPostId+'wordsTitle', redisExpireTimeSeconds);
+    await context.redis.expire(myPostId+'title', redisExpireTimeSeconds);
     await context.redis.expire(myPostId+'minutesToSolve', redisExpireTimeSeconds);
     await context.redis.expire(myPostId, redisExpireTimeSeconds);//key for leaderboard hash.
     await context.redis.del(myPostId+'answeredWords');
@@ -202,8 +201,8 @@ async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClie
   }
 }
 
-async function getWordsTitleFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
-  const wordsStr = await context.redis.get(postId+'wordsTitle');
+async function getTitleFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
+  const wordsStr = await context.redis.get(postId+'title');
   if( wordsStr && wordsStr.length > 0 ) {
    return wordsStr;
   }
@@ -282,7 +281,7 @@ class UnscrambleGame {
   private _leaderBoardRec:UseStateResult<leaderBoard[]>;
   private _currPage: UseStateResult<Pages>;
   private _allWords: UseStateResult<string[]>;
-  private _wordsTitle: UseStateResult<string>;
+  private _title: UseStateResult<string>;
   private _wordsCount: UseStateResult<number>;
   private _minutesToSolve: UseStateResult<number>;
   private _currentUserInfo: UseStateResult<CurrentUserInfo>;
@@ -314,10 +313,10 @@ class UnscrambleGame {
       return 0;//Return zero to indicate that there is no total duration available.
     });
 
-    this._wordsTitle = context.useState(async () => {
-      const wordsTitle = await this.redis.get(postId+'wordsTitle');
-      if(wordsTitle && wordsTitle.length > 0 ) {
-        return wordsTitle;
+    this._title = context.useState(async () => {
+      const title = await this.redis.get(postId+'title');
+      if(title && title.length > 0 ) {
+        return title;
       }
       return "";
     });
@@ -424,8 +423,7 @@ class UnscrambleGame {
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const nl = msg.payload as wordsAndLetters;
           this.wordsAndLetters = nl;
-          const wordsTitle = this.wordsCount == 2? this.wordsTitle : this.wordsTitle.slice(0, -1);
-          this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+nl.letters+" ?", false );
+          this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+nl.letters+" ?", false );
 
           let dateNow = new Date();
           const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
@@ -559,8 +557,8 @@ class UnscrambleGame {
     return this._allWords[0];
   }
 
-  public get wordsTitle() {
-    return this._wordsTitle[0];
+  public get title() {
+    return this._title[0];
   }
 
   public get wordsCount() {
@@ -659,8 +657,7 @@ class UnscrambleGame {
       ugs.userSelectedLetters = "";
       ugs.remainingTimeInSeconds = remainingTimeMillis/1000;
       this.userGameStatus = ugs;
-      const wordsTitle = this.wordsCount == 2? this.wordsTitle : this.wordsTitle.slice(0, -1);
-      this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+nl.letters+" ?", false );
+      this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+nl.letters+" ?", false );
     }
   } 
 
@@ -739,8 +736,9 @@ class UnscrambleGame {
           const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewWordsAndLetters};
           await this._channel.send(rm);
           await this.redis.del(this.myPostId+'answeredWords');
-          const wordsTitle = this.wordsCount == 2? this.wordsTitle : this.wordsTitle.slice(0, -1);
-          pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two " :"")+wordsTitle+" can you make out of "+nl.letters+" ?", this._context, this.myPostId );
+
+          pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+nl.letters+" ?",  this._context, this.myPostId );
+
           createChangeLettersThread(this._context, this.myPostId);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
         }
         else {//add to answered words list in redis.
@@ -763,7 +761,7 @@ class UnscrambleGame {
 const wordsInputForm = Devvit.createForm(  (data) => {
   return {
     title : `Create an ${gameTitle} post`,
-    description:"Please provide comma separated list of words, title for the words, number of words to scramble at a time, and time limit for solving. Use of browser/desktop view is recommended for creating new posts.",
+    description:"Please provide comma separated list of words, title, number of words to scramble at a time, and time limit for solving.",
     acceptLabel: "Submit",
     fields: [
       {
@@ -774,17 +772,17 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         required: true
       },
       {
-        name: 'wordsTitle',
-        label: 'Title for the list of words',
+        name: 'title',
+        label: 'Title for the game post',
         type: 'string',
-        helpText: 'Title for the above list of words (example: South Park character names, Javascript keywords etc.)',
+        helpText: 'Title for the post (example: Which South Park character names can you make from the given letters?)',
         required: true
       },
       {   
         name: 'wordsCount',
         type: 'select',
-        label: 'Number of words to scramble together at a time',
-        helpText: 'Number of words that would scrambled/jumbleed together at a time for the members to solve. This can be either 1 or 2.',
+        label: 'Number of words to scramble together',
+        helpText: 'Number of words that would be scrambled/jumbled together at a time for the members to solve. This can be either 1 or 2.',
         required: true,
         options: [
           { label: '2', value: '2' },
@@ -804,7 +802,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         name: 'totalGameDurationHours',
         label: 'Total game duration in hours',
         type: 'number',
-        helpText: 'Total game duration in hours, after which the leaderboard entries would be freezed.',
+        helpText: 'Total game duration in hours, after which the leaderboard entries would be frozen.',
         defaultValue: 24,
         required: true
       },
@@ -823,14 +821,14 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const reddit = context.reddit;
     const subreddit = await reddit.getCurrentSubreddit();
     const submittedWords = event.values.words.toUpperCase();
-    const submittedWordsTitle = event.values.wordsTitle;
+    const title = event.values.title;
     const minutesToSolve = event.values.minutesToSolve;
     const totalGameDurationHours = event.values.totalGameDurationHours;
     const wordsCount = event.values.wordsCount[0];
     const flairId = event.values.flair ? event.values.flair[0] : null;
 
     const post = await reddit.submitPost({
-      title: `Which ${submittedWordsTitle} can you make out of the given letters? [${gameTitle}]`,
+      title: title,
       subredditName: subreddit.name,
       flairId: flairId,
       preview: (
@@ -856,13 +854,13 @@ const wordsInputForm = Devvit.createForm(  (data) => {
   var postId = post.id;
 
   await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
-  await redis.set(postId+'wordsTitle', submittedWordsTitle, {expiration: expireTime});
+  await redis.set(postId+'title', title, {expiration: expireTime});
   await redis.set(postId+'wordsCount', wordsCount, {expiration: expireTime});
   await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
   await redis.set(postId+'totalGameDurationHours', totalGameDurationHours.toString(), {expiration: expireTime});
 
   ui.showToast({
-    text: `Successfully created an ${gameTitle} post!`,
+    text: `Successfully created a ${gameTitle} post!`,
     appearance: 'success',
   });
   context.ui.navigateTo(post.url);
@@ -897,7 +895,7 @@ Devvit.addCustomPostType({
     const game = new UnscrambleGame(_context, myPostId);
     const {currentPage, currentItems, toNextPage, toPrevPage} = usePagination(_context, game.leaderBoardRec, leaderBoardPageSize);
     let cp: JSX.Element[];
-
+    
     const updateWordsForm = useForm(
       {
         title : `Update ${gameTitle} words`,
@@ -972,8 +970,8 @@ Devvit.addCustomPostType({
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center top">
-        <text style="body" size="medium" alignment="center middle" color="#7fa78c" width="330px" height="18px" wrap>
-          Game ends at: {game.gameExpireTime.toString()}
+        <text style="body" size="medium" alignment="center middle" color="#84d995" width="330px" height="18px" wrap>
+          Game ends at:  {game.gameExpireTime.toString()}
         </text>
         <spacer size="xsmall" />
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="18px" wrap>
@@ -1081,7 +1079,7 @@ Devvit.addCustomPostType({
               </text>
             </hstack>
             <text style="body" wrap size="medium" color='black'>
-              This is a game of unscrambling {game.wordsTitle}. Each set of letters contains a minimum of {game.wordsCount} {game.wordsTitle} scrambled. Tap/click on the letters to select, and click on submit after the word is completed.
+              This is a game of unscrambling words. Each set of letters contains a minimum of {game.wordsCount} word(s) scrambled. Tap/click on the letters to select, and click on submit after the word is completed.
               New set of scrambled letters are presented after all words are solved, or after {game.minutesToSolve} minute(s).
             </text>
             <spacer size="small" />
@@ -1136,7 +1134,6 @@ Devvit.addCustomPostType({
         </vstack>
       </vstack>
     );
-
 
     cp = [ <GameBlock game={game} />,
       <LeaderBoardBlock game={game} />,
