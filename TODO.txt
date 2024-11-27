@@ -1,6 +1,7 @@
+check if the archiving mechanism works by setting the redis expire time to 5 mins.
 Make announcement about the game in other subreddits.
 
-Post leaderboard object, and words list object as comment, and retrieve json object on post run after game has ended.
+Post leaderboard object and words list object as comment, and retrieve json object on post run after game has ended.
 
 Make sure rest of the redis keys are left to expire.
 

@@ -54,6 +54,11 @@ type leaderBoard = {
   totalWordsSolved: number;
 };
 
+type postArchive = {
+  words: string[],
+  leaderboard: leaderBoard[]
+}
+
 export enum Pages {
   Game,
   LeaderBoard,
@@ -115,6 +120,28 @@ Devvit.addSchedulerJob({
   },
 });
 
+Devvit.addSchedulerJob({
+  name: 'post_archive_job',  
+  onRun: async(event, context) => {
+    var myPostId = event.data!.postId as string;
+
+    var spoilerCommentId = await context.redis.get(myPostId+'spoilerCommentId');
+
+    if( spoilerCommentId && spoilerCommentId.length > 0 ) {//Delete spoiler comment.
+      const spoilerComment = await context.reddit.getCommentById(spoilerCommentId);
+      await spoilerComment.delete();
+    }
+
+    var pa: postArchive = {words: await getWords(context, myPostId), leaderboard: await getLeaderboardRecords(context, myPostId)};
+    var archiveCommentJson = JSON.stringify(pa);
+    const redditComment = await context.reddit.submitComment({
+          id: `${myPostId}`,
+          text: archiveCommentJson
+        });
+    console.log("Created post archive with comment-id:"+redditComment.id );
+  },
+});
+
 async function createChangeLettersThread(context:TriggerContext| ContextAPIClients, postId:string) {
 
   await cancelChangeLettersJob(context, postId);
@@ -136,6 +163,24 @@ async function createChangeLettersThread(context:TriggerContext| ContextAPIClien
   }
 }
 
+async function createPostArchiveSchedule(context:TriggerContext| ContextAPIClients, postId:string) {
+  var postExpireTimestamp = await getPostExpireTimestamp(context, postId);  
+  try {
+    const jobId = await context.scheduler.runJob({
+      runAt: new Date(postExpireTimestamp),
+      name: 'post_archive_job',
+      data: { 
+        postId: postId,
+      }
+    });
+    await context.redis.set(postId+'post_archive_job', jobId, {expiration: expireTime});
+    console.log("Created job schedule for post_archive_job: "+jobId);
+  } catch (e) {
+    console.log('error - was not able to create post_archive_job:', e);
+    throw e;
+  }
+}
+
 Devvit.addTrigger({
   event: 'PostCreate',
   onEvent: async (event, context) => {
@@ -144,6 +189,7 @@ Devvit.addTrigger({
       const post = await context.reddit.getPostById(postId);
       if ( await isPostCreatedByCurrentApp(context, postId) ) {
         createChangeLettersThread(context, postId);
+        createPostArchiveSchedule(context, postId);
       }
     }
   },
@@ -171,6 +217,53 @@ Devvit.addTrigger({
   },
 });
 
+async function getLeaderboardRecords(context:TriggerContext| ContextAPIClients, postId:string ) {
+  const previousLeaderBoard = await context.redis.hGetAll(postId);
+  if (previousLeaderBoard && Object.keys(previousLeaderBoard).length > 0) {
+    var leaderBoardRecords: leaderBoard[] = [];
+    for (const key in previousLeaderBoard) {
+      const redisLBObj = JSON.parse(previousLeaderBoard[key]);
+      if( redisLBObj.username ) {
+        const lbObj:leaderBoard = {username: redisLBObj.username, totalWordsSolved:redisLBObj.totalWordsSolved };
+        leaderBoardRecords.push(lbObj);
+      }
+    }
+    leaderBoardRecords.sort((a, b) =>  b.totalWordsSolved - a.totalWordsSolved);
+    return leaderBoardRecords;
+  }
+  else {//try to get leaderbard records from the archive in comment.
+    
+    const redditPostComments = await getRedditPostComments(context, postId);
+    if( redditPostComments.length > 0 ) {
+      let metaCommentObj = redditPostComments.find(i => i.authorName === 'unscramble-game');
+      if( metaCommentObj ) {
+
+        try {
+          var pa = JSON.parse(metaCommentObj.body); 
+          const postArchive = pa as postArchive;
+          return postArchive.leaderboard;
+        } catch (e) {
+          return [];
+        }
+
+      }
+    }
+  }
+
+  return [];
+}
+
+async function getPostExpireTimestamp(context:TriggerContext| ContextAPIClients, postId:string ) {
+  const post = await context.reddit.getPostById(postId);
+  const totalDurationHours = await context.redis.get(postId+'totalGameDurationHours');
+  if( totalDurationHours && totalDurationHours.length  > 0 ) {
+    const totalDurationHoursInt = parseInt(totalDurationHours);
+    return post.createdAt.getTime() + 300000; //Temporarily expire game after 5 mins for testing.
+    //return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
+  }
+  return 0;//Return zero to indicate that there is no total duration available.
+}
+
 async function cancelChangeLettersJob(context:TriggerContext| ContextAPIClients, postId:string ){
   const oldJobId = await context.redis.get(postId+'changeLettersJobId');
   if( oldJobId && oldJobId.length > 0 ) {
@@ -180,7 +273,7 @@ async function cancelChangeLettersJob(context:TriggerContext| ContextAPIClients,
   }
 }
 
-async function getWordsFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
+async function getWords(context:TriggerContext| ContextAPIClients, postId:string) {
   const wordsStr = await context.redis.get(postId+'words');
   if( wordsStr && wordsStr.length > 0 ) {
     var wordsArray = wordsStr.split(",").map(function (value) {
@@ -188,7 +281,27 @@ async function getWordsFromRedis(context:TriggerContext| ContextAPIClients, post
    });
    return wordsArray;
   }
+  else {//get words from the archive in comment.
+    const redditPostComments = await getRedditPostComments(context, postId);
+      let metaCommentObj = redditPostComments.find(i => i.authorName === 'unscramble-game');
+      if( metaCommentObj ) {
+        var pa = JSON.parse(metaCommentObj.body); 
+        const postArchive = pa as postArchive;
+        return postArchive.words;
+      }
+  }
   return [];
+}
+
+async function getRedditPostComments(context: TriggerContext| ContextAPIClients, postId:string) {
+  const comments = await context.reddit
+  .getComments({
+    postId: postId,
+    limit: 100,
+    pageSize: 500,
+  })
+  .all();
+  return comments;
 }
 
 async function getMinutesToSolveFromRedis(context:TriggerContext| ContextAPIClients, postId:string) {
@@ -222,7 +335,7 @@ async function getWordsCountFromRedis(context:TriggerContext| ContextAPIClients,
 }
 
 async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClients, postId:string) {
-  const words = await getWordsFromRedis(context, postId);
+  const words = await getWords(context, postId);
   const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
   const wordsCount = await getWordsCountFromRedis(context, postId);
   const lettersExpireTimeSeconds = minutesToSolve * 60;
@@ -274,6 +387,7 @@ class UnscrambleGame {
   private readonly _ui: UIClient;
   private _context: ContextAPIClients;
   private _gameExpireTimeStamp: UseStateResult<number>;
+  private _postExpired: boolean;
   private _wordsAndLettersObj:UseStateResult<wordsAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
@@ -303,15 +417,10 @@ class UnscrambleGame {
     });
 
     this._gameExpireTimeStamp = context.useState(async () => {
-      const post = await context.reddit.getPostById(postId);
-      const totalDurationHours = await this._context.redis.get(this.myPostId+'totalGameDurationHours');
-      if( totalDurationHours && totalDurationHours.length  > 0 ) {
-        const totalDurationHoursInt = parseInt(totalDurationHours);
-        //return post.createdAt.getTime() + 300000; //Temporarily expire game after 5 mins for testing.
-        return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
-      }
-      return 0;//Return zero to indicate that there is no total duration available.
+      return await getPostExpireTimestamp(this._context, this.myPostId);
     });
+
+    this._postExpired =  this._gameExpireTimeStamp[0] > 0 && this.gameExpireTime >  new Date() ;
 
     this._title = context.useState(async () => {
       const title = await this.redis.get(postId+'title');
@@ -335,7 +444,7 @@ class UnscrambleGame {
     });
 
     this._allWords = context.useState(async () => {
-      const words = await getWordsFromRedis(context, this.myPostId);
+      const words = await getWords(context, this.myPostId);
       return words;
     });
 
@@ -389,25 +498,15 @@ class UnscrambleGame {
     );
 
     this._leaderBoardRec = context.useState(async () => {//Get Leaderboard records.
-      const previousLeaderBoard = await context.redis.hGetAll(this.myPostId);
-      if (previousLeaderBoard && Object.keys(previousLeaderBoard).length > 0) {
-        var leaderBoardRecords: leaderBoard[] = [];
-        for (const key in previousLeaderBoard) {
-          const redisLBObj = JSON.parse(previousLeaderBoard[key]);
-          if( redisLBObj.username ) {
-            if(redisLBObj.username == this.currentUserInfo.username) {
-              const usg = this._userGameStatus[0];
-              usg.totalWordsSolved = redisLBObj.totalWordsSolved;
-              this.userGameStatus = usg;
-            }
-            const lbObj:leaderBoard = {username: redisLBObj.username, totalWordsSolved:redisLBObj.totalWordsSolved };
-            leaderBoardRecords.push(lbObj);
-          }
+      var records = await getLeaderboardRecords(context, this.myPostId);
+      for(var i =0; i < records.length; i++ ) {
+        if(records[i].username == this.currentUserInfo.username) {
+          const usg = this._userGameStatus[0];
+          usg.totalWordsSolved = records[i].totalWordsSolved;
+          this.userGameStatus = usg;
         }
-        leaderBoardRecords.sort((a, b) =>  b.totalWordsSolved - a.totalWordsSolved);
-        return leaderBoardRecords;
-      } 
-      return [];
+      }
+      return records;
     });
 
     this._channel = useChannel<RealtimeMessage>({
@@ -520,7 +619,7 @@ class UnscrambleGame {
   }
 
   public async refreshWords() {
-    this.allWords = await getWordsFromRedis(this._context, this.myPostId);
+    this.allWords = await getWords(this._context, this.myPostId);
   };
   
   public addLetterToSelected(index:number) {
@@ -853,11 +952,17 @@ const wordsInputForm = Devvit.createForm(  (data) => {
 
   var postId = post.id;
 
+  const spoilerComment = await context.reddit.submitComment({
+    id: `${postId}`,
+    text: "Words in the set: >!"+submittedWords+"!<"
+  });
+
   await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
   await redis.set(postId+'title', title, {expiration: expireTime});
   await redis.set(postId+'wordsCount', wordsCount, {expiration: expireTime});
   await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
   await redis.set(postId+'totalGameDurationHours', totalGameDurationHours.toString(), {expiration: expireTime});
+  await redis.set(postId+'spoilerCommentId', spoilerComment.id, {expiration: expireTime});
 
   ui.showToast({
     text: `Successfully created a ${gameTitle} post!`,
