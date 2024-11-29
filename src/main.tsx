@@ -63,7 +63,8 @@ export enum Pages {
   Game,
   LeaderBoard,
   Help,
-  GameEnd
+  GameEnd,
+  Splash
 }
 
 function splitArray<T>(array: T[], segmentLength: number): T[][] {
@@ -464,6 +465,7 @@ class UnscrambleGame {
     });
 
     this._currPage = context.useState(async () => {
+      return Pages.Splash;//Temporary thing. TODO
       if( this.gameExpireTime < new Date() ) {
         await cancelChangeLettersJob(this._context, this.myPostId);
       }
@@ -1069,7 +1071,27 @@ Devvit.addCustomPostType({
           </hstack>
         </vstack>
       </vstack>
-      );
+    );
+
+    const ActivityFeedBlock = ({ game }: { game: UnscrambleGame }) => (
+      <vstack>
+      <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="312px">
+        Game Activity Feed:
+      </text>
+      <vstack borderColor={borderColour} padding='xsmall' height="182px" width="312px" backgroundColor='white'>
+        <vstack>
+        {
+            game.statusMessages.map((message) => (
+              <>
+                <text wrap color="black" size="small">{message}</text> 
+                <spacer size="small"/>
+              </>
+          ))}
+        </vstack>
+      </vstack>
+    </vstack>
+    );
+
 
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center top">
@@ -1090,22 +1112,8 @@ Devvit.addCustomPostType({
           ))}
         </vstack>
         <SelectedLettersBlock game={game} />
-
-        <spacer size="small" />  
-        <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="312px">
-          Game Activity Feed:
-        </text>
-        <vstack borderColor={borderColour} padding='xsmall' height="182px" width="312px" backgroundColor='white'>
-          <vstack>
-          {
-              game.statusMessages.map((message) => (
-                <>
-                  <text wrap color="black" size="small">{message}</text> 
-                  <spacer size="small"/>
-                </>
-            ))}
-          </vstack>
-        </vstack>
+        <spacer size="small" /> 
+        <ActivityFeedBlock game={game} />
       </vstack>
     );
     
@@ -1238,10 +1246,18 @@ Devvit.addCustomPostType({
       </vstack>
     );
 
+    const SplashBlock = ({ game }: { game: UnscrambleGame }) => (
+      <vstack width="344px" height="100%" backgroundColor="transparent" alignment="top center">
+         <webview width="310px" height="200px" url="bouncy.html" />
+         <ActivityFeedBlock game={game} />
+      </vstack>
+    );
+
     cp = [ <GameBlock game={game} />,
       <LeaderBoardBlock game={game} />,
       <HelpBlock game={game} />,
       <GameEndBlock game={game} />,
+      <SplashBlock game={game} />
      ];
 
     return (
