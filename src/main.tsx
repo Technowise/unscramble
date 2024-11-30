@@ -127,6 +127,8 @@ Devvit.addSchedulerJob({
   onRun: async(event, context) => {
     var myPostId = event.data!.postId as string;
 
+    await cancelChangeLettersJob(context, myPostId);
+
     var spoilerCommentId = await context.redis.get(myPostId+'spoilerCommentId');
 
     if( spoilerCommentId && spoilerCommentId.length > 0 ) {//Delete spoiler comment.
