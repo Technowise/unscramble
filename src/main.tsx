@@ -478,17 +478,18 @@ class UnscrambleGame {
 
     this._wordsAndLettersObj = context.useState<wordsAndLetters>(
       async() =>{
+        var wl:wordsAndLetters;
         const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
         if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {
           const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
-          const nl = wordsAndLettersObj as wordsAndLetters;
-          return nl;
+          wl = wordsAndLettersObj as wordsAndLetters;
         }
         else {
-          const nl:wordsAndLetters = await getRandomWordsAndLetters(context, this.myPostId);
-          await context.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
-          return nl;
+          wl = await getRandomWordsAndLetters(context, this.myPostId);
+          await context.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(wl), {expiration: expireTime});
         }
+        context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
+        return wl;
       }
     );
 
@@ -524,14 +525,15 @@ class UnscrambleGame {
           this.pushStatusMessage(pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
         }
         else if (msg.type == PayloadType.NewWordsAndLetters ){
-          const nl = msg.payload as wordsAndLetters;
-          this.wordsAndLetters = nl;
-          this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+nl.letters+" ?", false );
+          const wl = msg.payload as wordsAndLetters;
+          this.wordsAndLetters = wl;
+          this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+wl.letters+" ?", false );
 
           let dateNow = new Date();
           const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-          const UGS:UserGameState = {userSelectedLetters:'', userLetters: nl.letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalWordsSolved: this.userGameStatus.totalWordsSolved };
+          const UGS:UserGameState = {userSelectedLetters:'', userLetters: wl.letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalWordsSolved: this.userGameStatus.totalWordsSolved };
           this.userGameStatus = UGS;
+          this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
           this.pushStatusMessage("Answer: "+ this.wordsAndLetters.words.join(", "), false );          
@@ -834,15 +836,16 @@ class UnscrambleGame {
 
         an.words.push(pl);
         if( an.words.length == this.wordsAndLetters.words.length ) {//All words are already answered. Time to change the words and letters.
-          const nl:wordsAndLetters = await getRandomWordsAndLetters(this._context, this.myPostId);
-          await this.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(nl), {expiration: expireTime});
-          const rm: RealtimeMessage = { payload: nl, type: PayloadType.NewWordsAndLetters};
+          const wl:wordsAndLetters = await getRandomWordsAndLetters(this._context, this.myPostId);
+          await this.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(wl), {expiration: expireTime});
+          const rm: RealtimeMessage = { payload: wl, type: PayloadType.NewWordsAndLetters};
           await this._channel.send(rm);
           await this.redis.del(this.myPostId+'answeredWords');
 
-          pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+nl.letters+" ?",  this._context, this.myPostId );
+          pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+wl.letters+" ?",  this._context, this.myPostId );
 
           createChangeLettersThread(this._context, this.myPostId);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
+          this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         }
         else {//add to answered words list in redis.
           await this.redis.set(this.myPostId+'answeredWords',  JSON.stringify(an), {expiration: expireTime});
@@ -1250,7 +1253,7 @@ Devvit.addCustomPostType({
 
     const SplashBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack width="344px" height="100%" backgroundColor="transparent" alignment="top center">
-         <webview width="310px" height="200px" url="bouncy.html" />
+         <webview id="bounceLettersView" width="310px" height="200px" url="bouncy.html" />
          <ActivityFeedBlock game={game} />
       </vstack>
     );
