@@ -79,7 +79,7 @@ const MaxMessagesCount = 5;
 const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 //const redisExpireTimeSeconds = 2592000;//30 days in seconds.
-const redisExpireTimeSeconds = 300;//Temporarily set to 5 mins for testing.
+const redisExpireTimeSeconds = 1800;//Temporarily set to 30 mins for testing.
 
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -260,7 +260,7 @@ async function getPostExpireTimestamp(context:TriggerContext| ContextAPIClients,
   const totalDurationHours = await context.redis.get(postId+'totalGameDurationHours');
   if( totalDurationHours && totalDurationHours.length  > 0 ) {
     const totalDurationHoursInt = parseInt(totalDurationHours);
-    return post.createdAt.getTime() + 300000; //Temporarily expire game after 5 mins for testing.
+    return post.createdAt.getTime() + 9000000; //Temporarily expire game after 30 mins for testing.
     //return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
   }
   return 0;//Return zero to indicate that there is no total duration available.
@@ -467,7 +467,7 @@ class UnscrambleGame {
     });
 
     this._currPage = context.useState(async () => {
-      return Pages.Splash;//Temporary thing. TODO
+      //return Pages.Splash;//Temporary thing. TODO
       if( this.gameExpireTime < new Date() ) {
         await cancelChangeLettersJob(this._context, this.myPostId);
       }
@@ -488,7 +488,7 @@ class UnscrambleGame {
           wl = await getRandomWordsAndLetters(context, this.myPostId);
           await context.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(wl), {expiration: expireTime});
         }
-        context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
+        //context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         return wl;
       }
     );
@@ -533,7 +533,7 @@ class UnscrambleGame {
           const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: wl.letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalWordsSolved: this.userGameStatus.totalWordsSolved };
           this.userGameStatus = UGS;
-          this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
+          //this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
           this.pushStatusMessage("Answer: "+ this.wordsAndLetters.words.join(", "), false );          
@@ -845,7 +845,7 @@ class UnscrambleGame {
           pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+wl.letters+" ?",  this._context, this.myPostId );
 
           createChangeLettersThread(this._context, this.myPostId);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
-          this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
+          //this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         }
         else {//add to answered words list in redis.
           await this.redis.set(this.myPostId+'answeredWords',  JSON.stringify(an), {expiration: expireTime});
@@ -1118,7 +1118,8 @@ Devvit.addCustomPostType({
         </vstack>
         <SelectedLettersBlock game={game} />
         <spacer size="small" /> 
-        <ActivityFeedBlock game={game} />
+        {/* <ActivityFeedBlock game={game} /> */}
+        <webview id="bounceLettersView" width="310px" height="200px" url="feed/feed.html" />
       </vstack>
     );
     
@@ -1253,7 +1254,7 @@ Devvit.addCustomPostType({
 
     const SplashBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack width="344px" height="100%" backgroundColor="transparent" alignment="top center">
-         <webview id="bounceLettersView" width="310px" height="200px" url="bouncy.html" />
+         <webview id="bounceLettersView" width="310px" height="200px" url="bouncy-letters/bouncy.html" />
          <ActivityFeedBlock game={game} />
       </vstack>
     );

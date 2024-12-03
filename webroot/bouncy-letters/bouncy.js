@@ -8,6 +8,7 @@ const letters = [
 */
 
 var letters = [];
+var animationRequest = null;
 
 const box = document.querySelector('.box');
 const boxWidth = box.offsetWidth;
@@ -30,7 +31,7 @@ function animate() {
     letter.element.style.transform = `translate(${letter.x}px, ${letter.y}px)`;
   });
 
-  requestAnimationFrame(animate);
+  animationRequest = requestAnimationFrame(animate);
 }
 
 // Start the animation
@@ -55,6 +56,7 @@ window.onmessage = (ev) => {
     var boxElement = document.getElementsByClassName('box')[0];
     boxElement.innerHTML = '';
     letters= [];
+    cancelAnimationFrame(animationRequest);
 
     for(var i=0; i< lettersData.length; i++ ) {
       var iDiv = document.createElement('div');
@@ -62,8 +64,7 @@ window.onmessage = (ev) => {
       iDiv.id = 'letter'+lettersData[i];
       iDiv.className = 'letter';
       boxElement.appendChild(iDiv);
-      letters.push({ element: iDiv, x: Math.floor(Math.random() * 200) + 1, y: Math.floor(Math.random() * 150) + 1  , dx: 0.5, dy: 0.5 })
-
+      letters.push({ element: iDiv, x: Math.floor(Math.random() * 300) + 1, y: Math.floor(Math.random() * 190) + 1  , dx: 0.5, dy: 0.5 })
     }
 
     animate();
