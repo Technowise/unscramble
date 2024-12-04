@@ -78,8 +78,8 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
 const MaxMessagesCount = 5;
 const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
-//const redisExpireTimeSeconds = 2592000;//30 days in seconds.
-const redisExpireTimeSeconds = 1800;//Temporarily set to 30 mins for testing.
+const redisExpireTimeSeconds = 2592000;//30 days in seconds.
+//const redisExpireTimeSeconds = 1800;//Temporarily set to 30 mins for testing.
 
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -260,8 +260,8 @@ async function getPostExpireTimestamp(context:TriggerContext| ContextAPIClients,
   const totalDurationHours = await context.redis.get(postId+'totalGameDurationHours');
   if( totalDurationHours && totalDurationHours.length  > 0 ) {
     const totalDurationHoursInt = parseInt(totalDurationHours);
-    return post.createdAt.getTime() + 9000000; //Temporarily expire game after 30 mins for testing.
-    //return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
+    //return post.createdAt.getTime() + 9000000; //Temporarily expire game after 30 mins for testing.
+    return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
   }
   return 0;//Return zero to indicate that there is no total duration available.
 }
@@ -522,7 +522,7 @@ class UnscrambleGame {
         if(msg.type == PayloadType.SubmittedWord) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
-          this.pushStatusMessage(pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, false );
+          this.pushStatusMessage(pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, true );
         }
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const wl = msg.payload as wordsAndLetters;
@@ -555,16 +555,20 @@ class UnscrambleGame {
     this._channel.subscribe();
   }
 
-  public async pushStatusMessage(message:string, updateRedis:boolean = false){
+  public async pushStatusMessage(message:string, celebrate:boolean = false){
     var messages = this.statusMessages;
     messages.push(message);
     if( messages.length > MaxMessagesCount) {
       messages.shift();//Remove last message if we already have MaxMessagesCount messages.
     }
     this.statusMessages =  messages;
+
+    this._context.ui.webView.postMessage("feedView", {message: message, celebrate: celebrate});
+    /*
     if( updateRedis ) {
       await this.redis.set(this.myPostId+'statusMessages', JSON.stringify(messages), {expiration: expireTime});
     }
+    */
   }
 
   public async deleteLeaderboardRec(username: string) {//TODO: Add confirmation dialog
@@ -1097,7 +1101,6 @@ Devvit.addCustomPostType({
     </vstack>
     );
 
-
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center top">
         <text style="body" size="medium" alignment="center middle" color="#84d995" width="330px" height="18px" wrap>
@@ -1119,7 +1122,7 @@ Devvit.addCustomPostType({
         <SelectedLettersBlock game={game} />
         <spacer size="small" /> 
         {/* <ActivityFeedBlock game={game} /> */}
-        <webview id="bounceLettersView" width="310px" height="200px" url="feed/feed.html" />
+        <webview id="feedView" width="310px" height="200px" url="feed/feed.html" />
       </vstack>
     );
     
