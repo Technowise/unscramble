@@ -278,12 +278,14 @@ async function cancelChangeLettersJob(context:TriggerContext| ContextAPIClients,
 async function getWords(context:TriggerContext| ContextAPIClients, postId:string) {
   const wordsStr = await context.redis.get(postId+'words');
   if( wordsStr && wordsStr.length > 0 ) {
+    console.log("Got words from redis!");
     var wordsArray = wordsStr.split(",").map(function (value) {
       return value.trim();
    });
    return wordsArray;
   }
   else {//get words from the archive in comment.
+    console.log("Failed to get words from redis, trying from comments...");
     const redditPostComments = await getRedditPostComments(context, postId);
       let metaCommentObj = redditPostComments.find(i => i.authorName === 'unscramble-game' && i.body.includes("\"leaderboard\"") );
       if( metaCommentObj ) {
@@ -522,7 +524,7 @@ class UnscrambleGame {
         if(msg.type == PayloadType.SubmittedWord) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
-          this.pushStatusMessage(pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, true );
+          this.pushStatusMessage( pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, true );
         }
         else if (msg.type == PayloadType.NewWordsAndLetters ){
           const wl = msg.payload as wordsAndLetters;
@@ -1122,7 +1124,7 @@ Devvit.addCustomPostType({
         <SelectedLettersBlock game={game} />
         <spacer size="small" /> 
         {/* <ActivityFeedBlock game={game} /> */}
-        <webview id="feedView" width="310px" height="200px" url="feed/feed.html" />
+        <webview id="feedView" width="310px" height="200px" url="feed.html" />
       </vstack>
     );
     
