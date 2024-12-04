@@ -29,9 +29,11 @@ window.onmessage = (ev) => {
     }
 
     if( celebrate == true ) {
-        jsConfetti.addConfetti({
+        jsConfetti.addConfetti();
+        /*
+        jsConfetti.addConfetti().then(() => jsConfetti.addConfetti({
             emojis: ['🌈', '⚡️', '💥', '✨', '💫', '🌸'],
-        }).then(() => jsConfetti.addConfetti())
+        })); */
     }
   
   }
