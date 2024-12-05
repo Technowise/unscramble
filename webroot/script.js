@@ -1,6 +1,16 @@
 const listContainer = document.getElementById("list-container");
 const jsConfetti = new JSConfetti();
 
+function loadInitialData() {
+   if ( listContainer.childElementCount == 0 ){
+        window.parent.postMessage({
+        type: 'requestInitialFeedData'
+        }, '*');
+    }
+}
+
+loadInitialData();
+
 window.onmessage = (ev) => {
     console.log("Got message now...");
 

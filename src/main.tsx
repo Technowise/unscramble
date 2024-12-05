@@ -598,10 +598,6 @@ class UnscrambleGame {
   
   public hideLeaderboardBlock() {
     this.currPage = this.getHomePage();
-
-    if(this.currPage == Pages.Game) {
-      this._context.ui.webView.postMessage("feedView", {type: "initialFeedData", messages: this.statusMessages});
-    }
   }
 
   public showLeaderboardBlock() {
@@ -614,9 +610,6 @@ class UnscrambleGame {
 
   public hideHelpBlock() {
     this.currPage = this.getHomePage();
-    if(this.currPage == Pages.Game) {
-      this._context.ui.webView.postMessage("feedView", {type: "initialFeedData", messages: this.statusMessages});
-    }
   }
 
   public resetSelectedLetters() {
@@ -1140,7 +1133,11 @@ Devvit.addCustomPostType({
         <SelectedLettersBlock game={game} />
         <spacer size="small" /> 
         {/* <ActivityFeedBlock game={game} /> */}
-        <webview id="feedView" width="310px" height="200px" url="feed.html" />
+        <webview id="feedView" width="310px" height="200px" url="feed.html"  onMessage={(msg) => {
+          if( msg.type == "requestInitialFeedData") {//Load initial feed data.
+            _context.ui.webView.postMessage("feedView", {type: "initialFeedData", messages: game.statusMessages});
+          }
+        }}/>
       </vstack>
     );
     
