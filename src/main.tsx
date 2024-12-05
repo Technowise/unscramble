@@ -75,7 +75,7 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
   return result;
 }
 
-const MaxMessagesCount = 5;
+const MaxMessagesCount = 15;
 const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
@@ -345,30 +345,37 @@ async function getRandomWordsAndLetters(context:TriggerContext| ContextAPIClient
   const wordsCount = await getWordsCountFromRedis(context, postId);
   const lettersExpireTimeSeconds = minutesToSolve * 60;
   var word1index = Math.floor(Math.random() * words.length);
-  var allLetters = words[word1index].toUpperCase();
-  var wordsSet = [ words[word1index].toUpperCase() ];
+  if( words.length > 0 ) {
+    var allLetters = words[word1index].toUpperCase();
+    var wordsSet = [ words[word1index].toUpperCase() ];
 
-  if( wordsCount == 2 ) {
-    var word2index = Math.floor(Math.random() * words.length);
+    if( wordsCount == 2 ) {
+      var word2index = Math.floor(Math.random() * words.length);
 
-    while( word2index == word1index) {//Make sure we do not end up with same words.
-      word2index = Math.floor(Math.random() * words.length);
+      while( word2index == word1index) {//Make sure we do not end up with same words.
+        word2index = Math.floor(Math.random() * words.length);
+      }
+    allLetters = allLetters + words[ word2index].toUpperCase();
+    wordsSet.push(words[word2index].toUpperCase());
     }
-   allLetters = allLetters + words[ word2index].toUpperCase();
-   wordsSet.push(words[word2index].toUpperCase());
-  }
 
-  var shuffledLetters = allLetters;
-  while( shuffledLetters == allLetters){//Only loop out when letters are not same as original letters.
-    shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
-  }
+    var shuffledLetters = allLetters;
+    while( shuffledLetters == allLetters){//Only loop out when letters are not same as original letters.
+      shuffledLetters = allLetters.split('').sort(function(){return 0.5-Math.random()}).join('');
+    }
 
-  let dateNow = new Date();
-  const milliseconds = lettersExpireTimeSeconds * 1000;
-  var lettersExpireTimeMillis = dateNow.getTime();
-  lettersExpireTimeMillis = lettersExpireTimeMillis + milliseconds;
-  const wl:wordsAndLetters = {words: wordsSet, letters: shuffledLetters, expireTimeMillis: lettersExpireTimeMillis };
-  return wl;
+    let dateNow = new Date();
+    const milliseconds = lettersExpireTimeSeconds * 1000;
+    var lettersExpireTimeMillis = dateNow.getTime();
+    lettersExpireTimeMillis = lettersExpireTimeMillis + milliseconds;
+    const wl:wordsAndLetters = {words: wordsSet, letters: shuffledLetters, expireTimeMillis: lettersExpireTimeMillis };
+    return wl;
+  }
+  else {
+    //Something's wrong, redis did not return the words for this game. TODO: Find the cause and fix this issue.
+    const wl:wordsAndLetters = {words: [], letters: "", expireTimeMillis: 0 };
+    return wl;
+  }
 }
 
 //Update messages in redis so that other clients which load messages first time get the messages.
@@ -564,13 +571,7 @@ class UnscrambleGame {
       messages.shift();//Remove last message if we already have MaxMessagesCount messages.
     }
     this.statusMessages =  messages;
-
-    this._context.ui.webView.postMessage("feedView", {message: message, celebrate: celebrate});
-    /*
-    if( updateRedis ) {
-      await this.redis.set(this.myPostId+'statusMessages', JSON.stringify(messages), {expiration: expireTime});
-    }
-    */
+    this._context.ui.webView.postMessage("feedView", {type:"newMessage", message: message, celebrate: celebrate});
   }
 
   public async deleteLeaderboardRec(username: string) {//TODO: Add confirmation dialog
@@ -597,6 +598,10 @@ class UnscrambleGame {
   
   public hideLeaderboardBlock() {
     this.currPage = this.getHomePage();
+
+    if(this.currPage == Pages.Game) {
+      this._context.ui.webView.postMessage("feedView", {type: "initialFeedData", messages: this.statusMessages});
+    }
   }
 
   public showLeaderboardBlock() {
@@ -609,6 +614,9 @@ class UnscrambleGame {
 
   public hideHelpBlock() {
     this.currPage = this.getHomePage();
+    if(this.currPage == Pages.Game) {
+      this._context.ui.webView.postMessage("feedView", {type: "initialFeedData", messages: this.statusMessages});
+    }
   }
 
   public resetSelectedLetters() {
@@ -894,7 +902,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         name: 'wordsCount',
         type: 'select',
         label: 'Number of words to scramble together',
-        helpText: 'Number of words that would be scrambled/jumbled together at a time for the members to solve. This can be either 1 or 2.',
+        helpText: 'Number of words to scramble/jumble together. This can be either 1 (easy) or 2 (hard).',
         required: true,
         options: [
           { label: '2', value: '2' },
@@ -907,6 +915,14 @@ const wordsInputForm = Devvit.createForm(  (data) => {
         label: 'Minutes to solve each set of letters',
         type: 'number',
         helpText: 'Max number of minutes allowed to solve each set of scrambled/jumbled letters.',
+        defaultValue: 3,
+        required: true
+      },
+      {
+        name: 'showHint',
+        label: 'Show hint after half-time',
+        type: 'number',
+        helpText: 'If enabled, a hint of starting letter(s) would be shown after half time.',
         defaultValue: 3,
         required: true
       },
