@@ -17,6 +17,8 @@ body {
   text-align: center;
   width: 100%;
   overflow-x: hidden;
+  position: relative;
+  background-color: #395654;
 }
 
 #list-container {
@@ -26,6 +28,8 @@ body {
   background-color: #fff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   overflow-y: auto; /* Enables vertical scrolling */
+  /*position: absolute; */
+  transition: 5s ease;
 }
 
 .item {
@@ -41,17 +45,29 @@ body {
   font-size: 15px;
 }
 
-button {
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  margin-top: 10px;
+.overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  opacity: 0;
+  transition: 5s ease;
+  background-color: #395654;
 }
 
-button:hover {
-  background-color: #0056b3;
+.text {
+  color: white;
+  font-size: 20px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  -ms-transform: translate(-50%, -50%);
+/*
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  */
 }

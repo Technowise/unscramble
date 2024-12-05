@@ -1,4 +1,8 @@
 const listContainer = document.getElementById("list-container");
+
+const celebrateMessageElement = document.getElementById("celebrateMessage");
+const celebrateOverlayElement = document.getElementById("celebrateOverlay");
+
 const jsConfetti = new JSConfetti();
 
 function loadInitialData() {
@@ -40,13 +44,24 @@ window.onmessage = (ev) => {
         }, 100);
 
         if( celebrate == true ) {
-            //jsConfetti.addConfetti();
+            
+            celebrateMessageElement.textContent = message;
+
+            setTimeout(() => {
+                celebrateOverlayElement.style.opacity=1;
+                    
+            }, 100);
             
             jsConfetti.addConfetti().then(() => jsConfetti.addConfetti({
                 emojis: ['🏆', '🏅', '✨', '💫', '👑', '⭐'],
                 emojiSize: 60,
                 confettiNumber: 100,
-            }));
+            })); 
+
+            setTimeout(() => {
+                celebrateOverlayElement.style.opacity=0;
+                    
+            }, 5000);
         }
     }
     else if (type  == "initialFeedData") {
