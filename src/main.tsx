@@ -933,8 +933,8 @@ class UnscrambleGame {
 
 const wordsInputForm = Devvit.createForm( (data) => {
   return {
-    title : `Create a ${gameTitle} post`,
-    description:"Please provide comma separated list of words, title, number of words to scramble at a time, and time limit for solving.",
+    title : `Create ${gameTitle} post`,
+    //description:"Please provide comma separated list of words, title, number of words to scramble at a time, and time limit for solving.",
     acceptLabel: "Submit",
     fields: [
       {
@@ -1056,7 +1056,7 @@ const wordsInputForm = Devvit.createForm( (data) => {
 });
 
 Devvit.addMenuItem({
-  label: `Create a ${gameTitle} post`,
+  label: `Create ${gameTitle} post`,
   location: 'subreddit',
   onPress: async (_, context) => {
     await showCreatePostForm(context);

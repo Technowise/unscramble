@@ -1,5 +1,5 @@
 # Unscramble Game Overview
-This app lets you create Unscramble game with words tailored to your own community! You can input a set of words related to your community, along with a title and time limit to solve the word(s) (For example: A subreddit of a TV show may choose to use character names of the show, a subreddit for a programming language may choose to use keywords of programming for the game etc.). The app would then show scrambled letters from your chosen set of words. You can choose to show just letters of one word scrambled (easy), or to show two words scrambled together(hard). Users can solve the word by tapping/clicking on the letters, and click on submit after the word is completed. New set of scrambled letters are presented after solving word(s), or after the timeout. Users can unselect the letter by clicking on the letters in `Selected Letters` section. All community members are presented with the same set of letters in real-time, and anybody in the subreddit can solve them.
+This app lets you create Unscramble Game tailored to your own community! You can input a set of words related to your community, along with a title and time-limit to solve the word(s) [For example: A subreddit of a TV show may choose to use character names of the show, a subreddit for a programming language may choose to use keywords of programming for the game etc.]. The app would then present scrambled letters from your chosen set of words for participants to solve. You can choose to scramble one word(easy), or two words(hard). Users can solve the word by tapping/clicking on the letters to select, and click on submit after the word is completed. New set of scrambled letters are presented after solving word(s), or after the timeout. All community members are presented with the same set of letters in real-time, and anybody in the subreddit can solve them.
 
 ![Screenshot](https://i.imgur.com/zt4WEia.png)
 
@@ -15,7 +15,7 @@ This app lets you create Unscramble game with words tailored to your own communi
 The app view contains a live game feed, which shows message on which word was sloved along with their username.
 
 * Leaderbaord
-Leaderboard contains the list of usernames, and the number of words they have solved.
+Leaderboard contains the list of usernames ordered by number of words they have solved.
 
 ## Changelog
 * v0.0.1
@@ -24,6 +24,13 @@ Leaderboard contains the list of usernames, and the number of words they have so
   * Enablement to have multiple posts of this game in same subreddit. Add option to either have one word, or two word scrambled at a time for solving.
 * 0.0.14.8
   * Add option to delete Leaderboard entries for moderators.
+* 0.0.20
+  * Enhanced the feed-view using Webview feature of devvit - added confetti to celebrate correct submissions.
+  * Add option to choose number of words to scramble/jumble together.
+  * Add option to choose the number of hours for the game.
+  * Add option for moderators to update words after the game is created.
+  * Add option for to shuffle letters.
+  * Add option to show hint of starting letter(s) after half-time has elapsed.
 
 ## Links
 ### Demo
