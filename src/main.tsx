@@ -10,7 +10,8 @@ enum PayloadType {
   SubmittedWord,
   NewWordsAndLetters,
   TriggerShowAnswer,
-  TriggerRefreshWOrds
+  TriggerRefreshWords,
+  TriggerShowHint
 }
 
 type wordsAndLetters = {
@@ -96,6 +97,7 @@ Devvit.addSchedulerJob({
   onRun: async(event, context) => {
     var myPostId = event.data!.postId as string;
     console.log("running change_letters_job for post: "+myPostId);
+    cancelHowHintScheduledJob(context, myPostId);//Cancel previous show-hint job if it exists.
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send(myPostId+'events', rms);
     const title = await getTitleFromRedis(context, myPostId);
@@ -113,14 +115,28 @@ Devvit.addSchedulerJob({
     await context.redis.set(myPostId+'wordsAndLetters',  JSON.stringify(wordsAndLettersObj), {expiration: expireTime});
     const rm: RealtimeMessage = { payload: wordsAndLettersObj, type: PayloadType.NewWordsAndLetters};
     await context.realtime.send(myPostId+'events', rm);
-
+    createShowHintJob(context, myPostId);
     pushStatusMessageGlobal("Which "+ (wordsCount == 2? "two words" :"word")+" can you make out of "+wordsAndLettersObj.letters+" ?", context, myPostId );
     await context.redis.expire(myPostId+'changeLettersJobId', redisExpireTimeSeconds);//Extend expire time for keys that are necessary for app.
     await context.redis.expire(myPostId+'words', redisExpireTimeSeconds);
     await context.redis.expire(myPostId+'title', redisExpireTimeSeconds);
     await context.redis.expire(myPostId+'minutesToSolve', redisExpireTimeSeconds);
+    await context.redis.expire(myPostId+'showHint', redisExpireTimeSeconds);
     await context.redis.expire(myPostId, redisExpireTimeSeconds);//key for leaderboard hash.
     await context.redis.del(myPostId+'answeredWords');
+  },
+});
+
+Devvit.addSchedulerJob({
+  name: 'show_hint_job',  
+  onRun: async(event, context) => {
+    var myPostId = event.data!.postId as string;
+    console.log("running show_hint job for post: "+myPostId);
+    const answeredWordsJson = await context.redis.get(myPostId+'answeredWords');
+    if( ! ( answeredWordsJson && answeredWordsJson.length > 0 ) ) {//Trigger show hint only when there are no words answered.
+      const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowHint};
+      await context.realtime.send(myPostId+'events', rms);
+    }
   },
 });
 
@@ -129,7 +145,7 @@ Devvit.addSchedulerJob({
   onRun: async(event, context) => {
     var myPostId = event.data!.postId as string;
 
-    await cancelChangeLettersJob(context, myPostId);
+    await cancelScheduledJobs(context, myPostId);
 
     var spoilerCommentId = await context.redis.get(myPostId+'spoilerCommentId');
 
@@ -150,7 +166,7 @@ Devvit.addSchedulerJob({
 
 async function createChangeLettersThread(context:TriggerContext| ContextAPIClients, postId:string) {
 
-  await cancelChangeLettersJob(context, postId);
+  await cancelScheduledJobs(context, postId);
   const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
 
   try {
@@ -163,11 +179,32 @@ async function createChangeLettersThread(context:TriggerContext| ContextAPIClien
     });
     await context.redis.set(postId+'changeLettersJobId', jobId, {expiration: expireTime});
     console.log("Created job schedule for changeLetters: "+jobId);
+    createShowHintJob(context, postId);
+
   } catch (e) {
     console.log('error - was not able to create job:', e);
     throw e;
   }
 }
+
+async function createShowHintJob(context:TriggerContext| ContextAPIClients, postId:string) {
+  const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
+  const halfTimeSeconds = Math.floor( (minutesToSolve/2) * 60 );
+  const halfTimeSecondsMillis = halfTimeSeconds * 1000;
+  const dateNow = new Date();
+  const showHintRunAt = new Date( dateNow.getTime() + halfTimeSecondsMillis );
+
+  const showHintJobId = await context.scheduler.runJob({
+    runAt: showHintRunAt,
+    name: 'show_hint_job',
+    data: { 
+      postId: postId,
+    }
+  });
+  await context.redis.set(postId+'showHintJobId', showHintJobId, {expiration: expireTime});
+  console.log("Created job for showHint: "+showHintJobId);
+}
+
 
 async function createPostArchiveSchedule(context:TriggerContext| ContextAPIClients, postId:string) {
   var postExpireTimestamp = await getPostExpireTimestamp(context, postId);  
@@ -218,7 +255,7 @@ Devvit.addTrigger({
   onEvent: async ( event, context) => {
     const postId = event.postId?? "";
     if ( await isPostCreatedByCurrentApp(context, postId) ) {
-      await cancelChangeLettersJob(context, postId);
+      await cancelScheduledJobs(context, postId);
     }
   },
 });
@@ -268,12 +305,22 @@ async function getPostExpireTimestamp(context:TriggerContext| ContextAPIClients,
   return 0;//Return zero to indicate that there is no total duration available.
 }
 
-async function cancelChangeLettersJob(context:TriggerContext| ContextAPIClients, postId:string ){
+async function cancelScheduledJobs(context:TriggerContext| ContextAPIClients, postId:string ){
   const oldJobId = await context.redis.get(postId+'changeLettersJobId');
   if( oldJobId && oldJobId.length > 0 ) {
     await context.scheduler.cancelJob(oldJobId);
     console.log("Deleted scheduled job for the post("+postId+")");
     await context.redis.del(postId+'changeLettersJobId');
+  }
+  cancelHowHintScheduledJob(context, postId);
+}
+
+async function cancelHowHintScheduledJob(context:TriggerContext| ContextAPIClients, postId:string ){
+  const oldShowHintJobId = await context.redis.get(postId+'showHintJobId');
+  if( oldShowHintJobId && oldShowHintJobId.length > 0 ) {
+    await context.scheduler.cancelJob(oldShowHintJobId);
+    console.log("Deleted Show Hint job for the post("+postId+")");
+    await context.redis.del(postId+'showHintJobId');
   }
 }
 
@@ -479,7 +526,7 @@ class UnscrambleGame {
 
     this._currPage = context.useState(async () => {
       if( this.gameExpireTime < new Date() ) {
-        await cancelChangeLettersJob(this._context, this.myPostId);
+        await cancelScheduledJobs(this._context, this.myPostId);
       }
       return this.getHomePage()
     });
@@ -528,12 +575,12 @@ class UnscrambleGame {
       onMessage: (msg) => {
         const payload = msg.payload;
 
-        if(msg.type == PayloadType.SubmittedWord) {
+        if( msg.type == PayloadType.SubmittedWord ) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
           this.pushStatusMessage( pl.username+" submitted the word "+ pl.word.toLocaleUpperCase()+". "+ praiseMessage, true );
         }
-        else if (msg.type == PayloadType.NewWordsAndLetters ){
+        else if( msg.type == PayloadType.NewWordsAndLetters ){
           const wl = msg.payload as wordsAndLetters;
           this.wordsAndLetters = wl;
           this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+wl.letters+" ?", false );
@@ -543,10 +590,18 @@ class UnscrambleGame {
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: wl.letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalWordsSolved: this.userGameStatus.totalWordsSolved };
           this.userGameStatus = UGS;
         }
-        else if  (msg.type == PayloadType.TriggerShowAnswer) {
+        else if( msg.type == PayloadType.TriggerShowAnswer ) {
           this.pushStatusMessage("Answer: "+ this.wordsAndLetters.words.join(", "), false );          
         }
-        else if  (msg.type == PayloadType.TriggerRefreshWOrds) {
+        else if( msg.type == PayloadType.TriggerShowHint ) {
+          if( this.wordsAndLetters.words.length == 1 ) {
+            this.pushStatusMessage("Hint: The word start with letter "+ this.wordsAndLetters.words[0][0], false ); 
+          }
+          else {
+            this.pushStatusMessage("Hint: The words start with letters "+ this.wordsAndLetters.words[0][0]+" and "+ this.wordsAndLetters.words[1][0], false ); 
+          }      
+        }
+        else if( msg.type == PayloadType.TriggerRefreshWords ) {
           this.refreshWords();       
         }
       },
@@ -1041,7 +1096,7 @@ Devvit.addCustomPostType({
           return value.trim();
        });
         game.allWords = wordsArray;
-        const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerRefreshWOrds};
+        const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerRefreshWords};
         await _context.realtime.send(myPostId+'events', rms);
       }
     );
