@@ -1,4 +1,4 @@
-import { Devvit, ContextAPIClients, RedisClient, UIClient, UseStateResult, useInterval, useChannel, UseChannelResult, TriggerContext, JobContext, useForm, UseIntervalResult} from '@devvit/public-api';
+import { Devvit, ContextAPIClients, RedisClient, UseStateResult, useInterval, useChannel, UseChannelResult, TriggerContext, JobContext, useForm, UseIntervalResult} from '@devvit/public-api';
 import { usePagination } from '@devvit/kit';
 Devvit.configure({
   redditAPI: true,
@@ -87,6 +87,7 @@ const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
 const expireTime = new Date(dateNow.getTime() + milliseconds);
+const month_names_short =  ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const textColour = 'white';
 const borderColour = "#7fa78c";
 const letterBorderColour = 'black';
@@ -209,7 +210,6 @@ async function createShowHintJob(context:TriggerContext| ContextAPIClients, post
     console.log("Created job for showHint: "+showHintJobId);
   }
 }
-
 
 async function createPostArchiveSchedule(context:TriggerContext| ContextAPIClients, postId:string) {
   var postExpireTimestamp = await getPostExpireTimestamp(context, postId);  
@@ -450,7 +450,6 @@ class UnscrambleGame {
   public myPostId: string;
   private _redisKeyPrefix: string;
   private redis: RedisClient;
-  private readonly _ui: UIClient;
   private _context: ContextAPIClients;
   private _gameExpireTimeStamp: UseStateResult<number>;
   private _postExpired: boolean;
@@ -469,7 +468,6 @@ class UnscrambleGame {
 
   constructor( context: ContextAPIClients, postId: string) {
     this._context = context;
-    this._ui = context.ui;
     this.redis = context.redis;
     this.myPostId = postId;
     
@@ -715,6 +713,11 @@ class UnscrambleGame {
     return new Date(this._gameExpireTimeStamp[0]);
   }
 
+  public get gameExpireTimeStr()  { 
+    var dateObj = this.gameExpireTime;
+    return dateObj.getDay()+" " +month_names_short[ dateObj.getMonth()] +" "+dateObj.getHours()+":"+dateObj.getMinutes();
+  }
+  
   public get letters() {
     return this._wordsAndLettersObj[0].letters;
   }
@@ -928,9 +931,9 @@ class UnscrambleGame {
   }
 }
 
-const wordsInputForm = Devvit.createForm(  (data) => {
+const wordsInputForm = Devvit.createForm( (data) => {
   return {
-    title : `Create an ${gameTitle} post`,
+    title : `Create a ${gameTitle} post`,
     description:"Please provide comma separated list of words, title, number of words to scramble at a time, and time limit for solving.",
     acceptLabel: "Submit",
     fields: [
@@ -1053,7 +1056,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
 });
 
 Devvit.addMenuItem({
-  label: `Create ${gameTitle} post`,
+  label: `Create a ${gameTitle} post`,
   location: 'subreddit',
   onPress: async (_, context) => {
     await showCreatePostForm(context);
@@ -1174,7 +1177,8 @@ Devvit.addCustomPostType({
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center top">
         <text style="body" size="medium" alignment="center middle" color="#84d995" width="330px" height="18px" wrap>
-          Game ends at:  {game.gameExpireTime.toString()}
+          Game ends at:  { game.gameExpireTimeStr}
+          { /*game.gameExpireTime.getDay()+" " +month_names_short[ game.gameExpireTime.getMonth()] +" "+game.gameExpireTime.getHours()+":"+game.gameExpireTime.getMinutes() */}
         </text>
         <spacer size="xsmall" />
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="18px" wrap>
@@ -1328,7 +1332,6 @@ Devvit.addCustomPostType({
         </vstack>
       </vstack>
     );
-
 
     cp = [ <GameBlock game={game} />,
       <LeaderBoardBlock game={game} />,
