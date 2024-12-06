@@ -1156,25 +1156,6 @@ Devvit.addCustomPostType({
       </vstack>
     );
 
-    const ActivityFeedBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack>
-      <text style="heading" size="medium" weight='bold' color={textColour} alignment="start" width="312px">
-        Game Activity Feed:
-      </text>
-      <vstack borderColor={borderColour} padding='xsmall' height="182px" width="312px" backgroundColor='white'>
-        <vstack>
-        {
-            game.statusMessages.map((message) => (
-              <>
-                <text wrap color="black" size="small">{message}</text> 
-                <spacer size="small"/>
-              </>
-          ))}
-        </vstack>
-      </vstack>
-    </vstack>
-    );
-
     const GameBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack alignment="center top">
         <text style="body" size="medium" alignment="center middle" color="#84d995" width="330px" height="18px" wrap>
