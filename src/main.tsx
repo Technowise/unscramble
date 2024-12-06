@@ -64,7 +64,6 @@ export enum Pages {
   LeaderBoard,
   Help,
   GameEnd,
-  Splash
 }
 
 function splitArray<T>(array: T[], segmentLength: number): T[][] {
@@ -79,7 +78,6 @@ const MaxMessagesCount = 15;
 const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
-//const redisExpireTimeSeconds = 1800;//Temporarily set to 30 mins for testing.
 
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
@@ -476,7 +474,6 @@ class UnscrambleGame {
     });
 
     this._currPage = context.useState(async () => {
-      //return Pages.Splash;//Temporary thing. TODO
       if( this.gameExpireTime < new Date() ) {
         await cancelChangeLettersJob(this._context, this.myPostId);
       }
@@ -497,7 +494,6 @@ class UnscrambleGame {
           wl = await getRandomWordsAndLetters(context, this.myPostId);
           await context.redis.set(this.myPostId+'wordsAndLetters',  JSON.stringify(wl), {expiration: expireTime});
         }
-        //context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         return wl;
       }
     );
@@ -542,7 +538,6 @@ class UnscrambleGame {
           const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
           const UGS:UserGameState = {userSelectedLetters:'', userLetters: wl.letters, remainingTimeInSeconds: remainingTimeMillis/1000, totalWordsSolved: this.userGameStatus.totalWordsSolved };
           this.userGameStatus = UGS;
-          //this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         }
         else if  (msg.type == PayloadType.TriggerShowAnswer) {
           this.pushStatusMessage("Answer: "+ this.wordsAndLetters.words.join(", "), false );          
@@ -585,7 +580,6 @@ class UnscrambleGame {
     this.leaderBoardRec = updatedLeaderBoardArray;
     await this.redis.hDel(this.myPostId, [username]);
   }
-
 
   public getHomePage() {
     if( this.gameExpireTime > new Date() ) {
@@ -740,7 +734,7 @@ class UnscrambleGame {
   }
 
   public async openIntroPage(){
-    this._context.ui.navigateTo('https://www.reddit.com/r/Spottit/comments/1ethp30/introduction_to_spottit_game/');
+    this._context.ui.navigateTo('https://www.reddit.com/r/UnscrambleGame/');
   };
 
   public async getAnsweredWords() {
@@ -852,7 +846,6 @@ class UnscrambleGame {
           pushStatusMessageGlobal("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+wl.letters+" ?",  this._context, this.myPostId );
 
           createChangeLettersThread(this._context, this.myPostId);//Recreate the change-letters thread freshly so that new question does not get removed before answering.
-          //this._context.ui.webView.postMessage("bounceLettersView", {letters: wl.letters});
         }
         else {//add to answered words list in redis.
           await this.redis.set(this.myPostId+'answeredWords',  JSON.stringify(an), {expiration: expireTime});
@@ -947,6 +940,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
     const totalGameDurationHours = event.values.totalGameDurationHours;
     const wordsCount = event.values.wordsCount[0];
     const flairId = event.values.flair ? event.values.flair[0] : null;
+    const showHint =  event.values.showHint;
 
     const post = await reddit.submitPost({
       title: title,
@@ -985,6 +979,7 @@ const wordsInputForm = Devvit.createForm(  (data) => {
   await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
   await redis.set(postId+'totalGameDurationHours', totalGameDurationHours.toString(), {expiration: expireTime});
   await redis.set(postId+'spoilerCommentId', spoilerComment.id, {expiration: expireTime});
+  await redis.set(postId+'showHint', showHint.toString(), {expiration: expireTime});
 
   ui.showToast({
     text: `Successfully created a ${gameTitle} post!`,
@@ -1270,18 +1265,11 @@ Devvit.addCustomPostType({
       </vstack>
     );
 
-    const SplashBlock = ({ game }: { game: UnscrambleGame }) => (
-      <vstack width="344px" height="100%" backgroundColor="transparent" alignment="top center">
-         <webview id="bounceLettersView" width="310px" height="200px" url="bouncy-letters/bouncy.html" />
-         <ActivityFeedBlock game={game} />
-      </vstack>
-    );
 
     cp = [ <GameBlock game={game} />,
       <LeaderBoardBlock game={game} />,
       <HelpBlock game={game} />,
       <GameEndBlock game={game} />,
-      <SplashBlock game={game} />
      ];
 
     return (
