@@ -1,6 +1,7 @@
+Properly format the game end time.
 Show hint after half time.
-Load previous messages in webview on initial load.
-Figure out a way to make sure that scheduler do not run after the post has expired.
+Load previous messages in webview on initial load. - Done
+Figure out a way to make sure that scheduler do not run after the post has expired.- Done.
 check if the archiving mechanism works by setting the redis expire time to 5 mins.
 Make announcement about the game in other subreddits.
 

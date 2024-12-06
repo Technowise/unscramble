@@ -37,6 +37,10 @@ type UserSubmittedWord = {
   username: string;
 };
 
+type webviewDataRequest = {
+  type: string;
+};
+
 type answeredWords = {
   words: UserSubmittedWord[];
 };
@@ -74,7 +78,7 @@ function splitArray<T>(array: T[], segmentLength: number): T[][] {
   return result;
 }
 
-const MaxMessagesCount = 15;
+const MaxMessagesCount = 10;
 const leaderBoardPageSize = 12;
 const praiseMessages = ["Good job! 👍🏼", "Well done! ✅"];
 const redisExpireTimeSeconds = 2592000;//30 days in seconds.
@@ -1126,10 +1130,10 @@ Devvit.addCustomPostType({
           ))}
         </vstack>
         <SelectedLettersBlock game={game} />
-        <spacer size="small" /> 
-        {/* <ActivityFeedBlock game={game} /> */}
+        <spacer size="small" />
         <webview id="feedView" width="310px" height="200px" url="feed.html"  onMessage={(msg) => {
-          if( msg.type == "requestInitialFeedData") {//Load initial feed data.
+          const wr = msg as webviewDataRequest;
+          if( wr.type == "requestInitialFeedData") {//Load initial feed data.
             _context.ui.webView.postMessage("feedView", {type: "initialFeedData", messages: game.statusMessages});
           }
         }}/>
