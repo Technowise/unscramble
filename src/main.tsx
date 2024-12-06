@@ -188,21 +188,26 @@ async function createChangeLettersThread(context:TriggerContext| ContextAPIClien
 }
 
 async function createShowHintJob(context:TriggerContext| ContextAPIClients, postId:string) {
-  const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
-  const halfTimeSeconds = Math.floor( (minutesToSolve/2) * 60 );
-  const halfTimeSecondsMillis = halfTimeSeconds * 1000;
-  const dateNow = new Date();
-  const showHintRunAt = new Date( dateNow.getTime() + halfTimeSecondsMillis );
 
-  const showHintJobId = await context.scheduler.runJob({
-    runAt: showHintRunAt,
-    name: 'show_hint_job',
-    data: { 
-      postId: postId,
-    }
-  });
-  await context.redis.set(postId+'showHintJobId', showHintJobId, {expiration: expireTime});
-  console.log("Created job for showHint: "+showHintJobId);
+  const shouldShowHint = await context.redis.get(postId+'showHint');
+
+  if( shouldShowHint && shouldShowHint == "true" ) {
+    const minutesToSolve = await getMinutesToSolveFromRedis(context, postId);
+    const halfTimeSeconds = Math.floor( (minutesToSolve/2) * 60 );
+    const halfTimeSecondsMillis = halfTimeSeconds * 1000;
+    const dateNow = new Date();
+    const showHintRunAt = new Date( dateNow.getTime() + halfTimeSecondsMillis );
+
+    const showHintJobId = await context.scheduler.runJob({
+      runAt: showHintRunAt,
+      name: 'show_hint_job',
+      data: { 
+        postId: postId,
+      }
+    });
+    await context.redis.set(postId+'showHintJobId', showHintJobId, {expiration: expireTime});
+    console.log("Created job for showHint: "+showHintJobId);
+  }
 }
 
 
@@ -966,9 +971,9 @@ const wordsInputForm = Devvit.createForm(  (data) => {
       {
         name: 'showHint',
         label: 'Show hint after half-time',
-        type: 'number',
+        type: 'boolean',
         helpText: 'If enabled, a hint of starting letter(s) would be shown after half time.',
-        defaultValue: 3,
+        defaultValue: true,
         required: true
       },
       {
@@ -1035,8 +1040,8 @@ const wordsInputForm = Devvit.createForm(  (data) => {
   await redis.set(postId+'words', submittedWords, {expiration: expireTime} );
   await redis.set(postId+'title', title, {expiration: expireTime});
   await redis.set(postId+'wordsCount', wordsCount, {expiration: expireTime});
-  await redis.set(postId+'minutesToSolve', minutesToSolve.toString(), {expiration: expireTime});
-  await redis.set(postId+'totalGameDurationHours', totalGameDurationHours.toString(), {expiration: expireTime});
+  await redis.set(postId+'minutesToSolve', Math.trunc(minutesToSolve).toString(), {expiration: expireTime});
+  await redis.set(postId+'totalGameDurationHours', Math.trunc(totalGameDurationHours).toString(), {expiration: expireTime});
   await redis.set(postId+'spoilerCommentId', spoilerComment.id, {expiration: expireTime});
   await redis.set(postId+'showHint', showHint.toString(), {expiration: expireTime});
 
