@@ -1178,7 +1178,6 @@ Devvit.addCustomPostType({
       <vstack alignment="center top">
         <text style="body" size="medium" alignment="center middle" color="#84d995" width="330px" height="18px" wrap>
           Game ends at:  { game.gameExpireTimeStr}
-          { /*game.gameExpireTime.getDay()+" " +month_names_short[ game.gameExpireTime.getMonth()] +" "+game.gameExpireTime.getHours()+":"+game.gameExpireTime.getMinutes() */}
         </text>
         <spacer size="xsmall" />
         <text style="heading" size="large" weight='bold' alignment="center middle" color={textColour} width="330px" height="18px" wrap>

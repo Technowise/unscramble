@@ -1,9 +1,9 @@
-Properly format the game end time.
-Show hint after half time.
 Show user's avatar image in the celebration view.
+Properly format the game end time. - Done.
+Show hint after half time. - Done.
 Load previous messages in webview on initial load. - Done
 Figure out a way to make sure that scheduler do not run after the post has expired.- Done.
-check if the archiving mechanism works by setting the redis expire time to 5 mins.
+check if the archiving mechanism works by setting the redis expire time to 5 mins. - Done
 Make announcement about the game in other subreddits.
 
 Post leaderboard object and words list object as comment, and retrieve json object on post run after game has ended.
