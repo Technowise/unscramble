@@ -715,7 +715,8 @@ class UnscrambleGame {
 
   public get gameExpireTimeStr()  { 
     var dateObj = this.gameExpireTime;
-    return dateObj.getDay()+" " +month_names_short[ dateObj.getMonth()] +" "+dateObj.getHours()+":"+dateObj.getMinutes();
+    //return dateObj.getDay()+" " +month_names_short[ dateObj.getMonth()] +" "+dateObj.getHours().toString().padStart(2, '0')+":"+dateObj.getMinutes().toString().padStart(2, '0');
+    return dateObj.toString();
   }
   
   public get letters() {
