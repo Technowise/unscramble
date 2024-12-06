@@ -1270,6 +1270,16 @@ Devvit.addCustomPostType({
             </hstack>
             <text style="body" wrap size="medium" color='black'>
               You can view how many words each participant has solved by clicking on `Leaderboard` button.
+            </text>
+            <spacer size="small" />
+            <hstack alignment='start middle'>
+              <icon name="comment" size="xsmall" color='black'></icon>
+              <text style="heading" size="medium" color='black'>
+                &nbsp; Finding all the words in set.
+              </text>
+            </hstack>
+            <text style="body" wrap size="medium" color='black'>
+              You can find all the words in set added as comment to the post with spoiler treatment. You can click on it to view all words.
             </text> 
             <spacer size="small" />
           </vstack>
