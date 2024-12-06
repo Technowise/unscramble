@@ -26,6 +26,7 @@ Leaderboard contains the list of usernames ordered by number of words they have 
   * Add option to delete Leaderboard entries for moderators.
 * 0.0.21
   * Enhanced the feed-view using Webview feature of devvit - added confetti to celebrate correct submissions.
+  * Added ability to make post by anyone in the community.
   * Add option to choose number of words to scramble/jumble together.
   * Add option to choose the number of hours for the game.
   * Add option for moderators to update words after the game is created.
