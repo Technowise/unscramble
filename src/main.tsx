@@ -1234,7 +1234,6 @@ Devvit.addCustomPostType({
             </text>
           </hstack>
           <vstack height="82%" width="100%" padding="medium">
-            <spacer size="small" />
             <hstack alignment='start middle'>
               <icon name="search" size="xsmall" color='black'></icon>
               <text style="heading" size="medium" color='black'>
@@ -1256,17 +1255,6 @@ Devvit.addCustomPostType({
             <text style="body" wrap size="medium" color='black'>
               You can find all the words in set posted in comments section(with spoiler treatment). Click on it to reveal all the possible words.
             </text> 
-            <spacer size="small" />
-
-            <hstack alignment='start middle'>
-              <icon name="list-numbered" size="xsmall" color='black'></icon>
-              <text style="heading" size="medium" color='black'>
-                &nbsp; View leaderboard.
-              </text>
-            </hstack>
-            <text style="body" wrap size="medium" color='black'>
-              You can view how many words each participant has solved by clicking on `Leaderboard` button.
-            </text>
             <spacer size="small" />
 
           </vstack>
