@@ -1117,7 +1117,7 @@ Devvit.addCustomPostType({
     const SelectedLettersBlock = ({ game }: { game: UnscrambleGame }) => (
       <vstack>
         <hstack alignment="center middle" width="100%"  height="30px" min-height="30px">
-          <text size="medium" weight='bold' color={textColour}>Selected Letters</text>
+          <text size="medium" weight='bold' color={textColour}>Selected Letters:</text>
           <spacer grow />
           <text size="medium" weight='bold' color={textColour} width="90px">🕒 left: {Math.trunc(game.userGameStatus.remainingTimeInSeconds)}</text>
         </hstack>
@@ -1235,7 +1235,7 @@ Devvit.addCustomPostType({
           </hstack>
           <vstack height="82%" width="100%" padding="medium">
             <hstack alignment='start middle'>
-              <icon name="search" size="xsmall" color='black'></icon>
+              <icon name="help" size="xsmall" color='black'></icon>
               <text style="heading" size="medium" color='black'>
                 &nbsp; How to play {gameTitle}
               </text>
@@ -1249,7 +1249,7 @@ Devvit.addCustomPostType({
             <hstack alignment='start middle'>
               <icon name="comment" size="xsmall" color='black'></icon>
               <text style="heading" size="medium" color='black'>
-                &nbsp; Finding all the words in set.
+                &nbsp; Finding all the words in set
               </text>
             </hstack>
             <text style="body" wrap size="medium" color='black'>
