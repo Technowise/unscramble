@@ -87,7 +87,6 @@ const redisExpireTimeSeconds = 2592000;//30 days in seconds.
 let dateNow = new Date();
 const milliseconds = redisExpireTimeSeconds * 1000;
 const expireTime = new Date(dateNow.getTime() + milliseconds);
-const month_names_short =  ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const textColour = 'white';
 const borderColour = "#7fa78c";
 const letterBorderColour = 'black';
@@ -101,15 +100,14 @@ Devvit.addSchedulerJob({
     cancelHowHintScheduledJob(context, myPostId);//Cancel previous show-hint job if it exists.
     const rms: RealtimeMessage = { payload: {}, type: PayloadType.TriggerShowAnswer};
     await context.realtime.send(myPostId+'events', rms);
-    const title = await getTitleFromRedis(context, myPostId);
     const wordsCount = await getWordsCountFromRedis(context, myPostId);
 
     //Get old words and letters from redis.
     const wordsAndLettersJson = await context.redis.get(myPostId+'wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
-      const nl = wordsAndLettersObj as wordsAndLetters;
-      pushStatusMessageGlobal("Answer: "+ nl.words.join(", ") , context, myPostId );
+      const wl = wordsAndLettersObj as wordsAndLetters;
+      pushStatusMessageGlobal("Answer: "+ wl.words.join(", ") , context, myPostId );
     }
 
     const wordsAndLettersObj:wordsAndLetters = await getRandomWordsAndLetters(context, myPostId);
@@ -145,7 +143,6 @@ Devvit.addSchedulerJob({
   name: 'post_archive_job',  
   onRun: async(event, context) => {
     var myPostId = event.data!.postId as string;
-
     await cancelScheduledJobs(context, myPostId);
 
     var spoilerCommentId = await context.redis.get(myPostId+'spoilerCommentId');
@@ -234,7 +231,6 @@ Devvit.addTrigger({
   onEvent: async (event, context) => {
     const postId = event.post?.id ?? "";
     if( postId != "") {
-      const post = await context.reddit.getPostById(postId);
       if ( await isPostCreatedByCurrentApp(context, postId) ) {
         createChangeLettersThread(context, postId);
         createPostArchiveSchedule(context, postId);
@@ -304,7 +300,6 @@ async function getPostExpireTimestamp(context:TriggerContext| ContextAPIClients,
   const totalDurationHours = await context.redis.get(postId+'totalGameDurationHours');
   if( totalDurationHours && totalDurationHours.length  > 0 ) {
     const totalDurationHoursInt = parseInt(totalDurationHours);
-    //return post.createdAt.getTime() + 9000000; //Temporarily expire game after 30 mins for testing.
     return post.createdAt.getTime() + (totalDurationHoursInt*60*60*1000);
   }
   return 0;//Return zero to indicate that there is no total duration available.
@@ -452,7 +447,6 @@ class UnscrambleGame {
   private redis: RedisClient;
   private _context: ContextAPIClients;
   private _gameExpireTimeStamp: UseStateResult<number>;
-  private _postExpired: boolean;
   private _wordsAndLettersObj:UseStateResult<wordsAndLetters>;
   private _userGameStatus: UseStateResult<UserGameState>;
   private _statusMessages: UseStateResult<string[]>;
@@ -483,8 +477,6 @@ class UnscrambleGame {
     this._gameExpireTimeStamp = context.useState(async () => {
       return await getPostExpireTimestamp(this._context, this.myPostId);
     });
-
-    this._postExpired =  this._gameExpireTimeStamp[0] > 0 && this.gameExpireTime >  new Date() ;
 
     this._title = context.useState(async () => {
       const title = await this.redis.get(postId+'title');
@@ -576,8 +568,6 @@ class UnscrambleGame {
     this._channel = useChannel<RealtimeMessage>({
       name: this.myPostId+'events',
       onMessage: (msg) => {
-        const payload = msg.payload;
-
         if( msg.type == PayloadType.SubmittedWord ) {
           const praiseMessage = praiseMessages[Math.floor(Math.random() * praiseMessages.length) ];
           const pl = msg.payload as UserSubmittedWord;      
@@ -713,10 +703,11 @@ class UnscrambleGame {
     return new Date(this._gameExpireTimeStamp[0]);
   }
 
-  public get gameExpireTimeStr()  { 
-    var dateObj = this.gameExpireTime;
-    //return dateObj.getDay()+" " +month_names_short[ dateObj.getMonth()] +" "+dateObj.getHours().toString().padStart(2, '0')+":"+dateObj.getMinutes().toString().padStart(2, '0');
-    return dateObj.toString();
+  public get gameExpireTimeStr() {
+    const dateStr =  this.gameExpireTime.toString();
+    const dateStrFormatted = dateStr.split(":");
+    dateStrFormatted.pop();
+    return dateStrFormatted.join(":");
   }
   
   public get letters() {
@@ -801,10 +792,6 @@ class UnscrambleGame {
     this._currPage[1](value);
   }
 
-  public async openIntroPage(){
-    this._context.ui.navigateTo('https://www.reddit.com/r/UnscrambleGame/');
-  };
-
   public async getAnsweredWords() {
     const answeredWordsJson = await this.redis.get(this.myPostId+'answeredWords');
     if( answeredWordsJson && answeredWordsJson.length > 0 ) {
@@ -822,16 +809,16 @@ class UnscrambleGame {
     const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
-      const nl = wordsAndLettersObj as wordsAndLetters;
+      const wl = wordsAndLettersObj as wordsAndLetters;
       let dateNow = new Date();
       const remainingTimeMillis = this._wordsAndLettersObj[0].expireTimeMillis - dateNow.getTime();
-      this.wordsAndLetters = nl;
+      this.wordsAndLetters = wl;
       var ugs = this.userGameStatus;//Reset selected letters for this user.
-      ugs.userLetters = nl.letters;
+      ugs.userLetters = wl.letters;
       ugs.userSelectedLetters = "";
       ugs.remainingTimeInSeconds = remainingTimeMillis/1000;
       this.userGameStatus = ugs;
-      this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+nl.letters+" ?", false );
+      this.pushStatusMessage("Which "+ (this.wordsCount == 2? "two words" :"word")+" can you make out of "+wl.letters+" ?", false );
     }
   } 
 
@@ -839,10 +826,10 @@ class UnscrambleGame {
     const wordsAndLettersJson = await this.redis.get(this.myPostId+'wordsAndLetters');
     if ( wordsAndLettersJson && wordsAndLettersJson.length > 0) {//Cancel previous job if it exists.
       const wordsAndLettersObj = JSON.parse(wordsAndLettersJson);
-      const nl = wordsAndLettersObj as wordsAndLetters;
+      const wl = wordsAndLettersObj as wordsAndLetters;
       
-      if( nl.letters != this.wordsAndLetters.letters ) {
-        this.wordsAndLetters = nl;
+      if( wl.letters != this.wordsAndLetters.letters ) {
+        this.wordsAndLetters = wl;
         return true;
       }
       else {
@@ -935,7 +922,6 @@ class UnscrambleGame {
 const wordsInputForm = Devvit.createForm( (data) => {
   return {
     title : `Create ${gameTitle} post`,
-    //description:"Please provide comma separated list of words, title, number of words to scramble at a time, and time limit for solving.",
     acceptLabel: "Submit",
     fields: [
       {
@@ -1033,7 +1019,6 @@ const wordsInputForm = Devvit.createForm( (data) => {
   });
 
   const {redis} = context;
-
   var postId = post.id;
 
   const spoilerComment = await context.reddit.submitComment({
@@ -1074,7 +1059,6 @@ async function showCreatePostForm(context:ContextAPIClients) {
   context.ui.showForm(wordsInputForm, {flairOptions: options});
 }
 
-// Add a post type definition
 Devvit.addCustomPostType({
   name: 'Unscramble Post',
   height: 'tall',
@@ -1258,10 +1242,22 @@ Devvit.addCustomPostType({
               </text>
             </hstack>
             <text style="body" wrap size="medium" color='black'>
-              This is a game of unscrambling words. Each set of letters contains a minimum of {game.wordsCount} word(s) scrambled. Tap/click on the letters to select, and click on submit after the word is completed.
+              Unscramble words (as described in post title) from the given set of letters.  Each set of letters contains a minimum of {game.wordsCount} word(s) scrambled. Tap on the letters to select, and click on submit after the word is completed.
               New set of scrambled letters are presented after all words are solved, or after {game.minutesToSolve} minute(s).
             </text>
             <spacer size="small" />
+
+            <hstack alignment='start middle'>
+              <icon name="comment" size="xsmall" color='black'></icon>
+              <text style="heading" size="medium" color='black'>
+                &nbsp; Finding all the words in set.
+              </text>
+            </hstack>
+            <text style="body" wrap size="medium" color='black'>
+              You can find all the words in set posted in comments section(with spoiler treatment). Click on it to reveal all the possible words.
+            </text> 
+            <spacer size="small" />
+
             <hstack alignment='start middle'>
               <icon name="list-numbered" size="xsmall" color='black'></icon>
               <text style="heading" size="medium" color='black'>
@@ -1272,16 +1268,7 @@ Devvit.addCustomPostType({
               You can view how many words each participant has solved by clicking on `Leaderboard` button.
             </text>
             <spacer size="small" />
-            <hstack alignment='start middle'>
-              <icon name="comment" size="xsmall" color='black'></icon>
-              <text style="heading" size="medium" color='black'>
-                &nbsp; Finding all the words in set.
-              </text>
-            </hstack>
-            <text style="body" wrap size="medium" color='black'>
-              You can find all the words in set added as comment to the post with spoiler treatment. You can click on it to view all words.
-            </text> 
-            <spacer size="small" />
+
           </vstack>
           <hstack alignment="bottom center" width="100%" height="8%">
             <button size="small" icon='close' onPress={() => game.hideHelpBlock()}>Close</button>
